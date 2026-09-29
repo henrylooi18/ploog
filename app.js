@@ -1,5 +1,6 @@
 // ploog — the bowel movement tracker your colon deserves 💩
-// all data lives in localStorage on this device.
+// the server (/api, backed by Redis) is the source of truth.
+// localStorage is a cache so the page renders instantly and survives flaky wifi.
 
 const $ = (sel) => document.querySelector(sel);
 const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
@@ -29,6 +30,31 @@ function setEntry(key, entry) {
   if (entry) user().log[key] = entry;
   else delete user().log[key];
   save();
+  api("/api/log", { method: "PUT", body: { u: db.current, date: key, entry: entry || null } })
+    .catch(() => toast("couldn't sync to the cloud 😭"));
+}
+
+/* ---------- server ---------- */
+
+async function api(path, { method = "GET", body } = {}) {
+  const res = await fetch(path, {
+    method,
+    headers: body ? { "Content-Type": "application/json" } : undefined,
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  if (!res.ok) throw new Error(`${method} ${path} -> ${res.status}`);
+  return res.json();
+}
+
+// pull the latest log so check-ins from other devices show up
+async function refresh() {
+  try {
+    const { log } = await api(`/api/log?u=${encodeURIComponent(db.current)}`);
+    user().log = log;
+    save();
+  } catch {
+    // offline or no server (e.g. plain static preview): keep the cached log
+  }
 }
 
 /* ---------- dates (always local time, never UTC) ---------- */
@@ -102,8 +128,10 @@ function toast(msg) {
   toastTimer = setTimeout(() => el.classList.remove("show"), 2000);
 }
 
-function boot() {
+async function boot() {
   if (db.current && db.users[db.current]) {
+    show("loading");
+    await refresh();
     user().log[todayKey()] ? showCalendar() : showAsk();
   } else {
     show("login");
@@ -113,13 +141,22 @@ function boot() {
 
 /* login */
 
-$("#login-form").addEventListener("submit", (e) => {
+$("#login-form").addEventListener("submit", async (e) => {
   e.preventDefault();
   const name = $("#username").value.trim();
   if (!name) return;
-  const id = name.toLowerCase();
-  if (!db.users[id]) db.users[id] = { name, log: {} };
-  db.current = id;
+  show("loading");
+  try {
+    const data = await api("/api/login", { method: "POST", body: { name } });
+    db.users[data.id] = { name: data.name, log: data.log };
+    db.current = data.id;
+  } catch {
+    // no server reachable: carry on locally
+    const id = name.toLowerCase();
+    if (!db.users[id]) db.users[id] = { name, log: {} };
+    db.current = id;
+    toast("offline mode: saving on this device only 📴");
+  }
   save();
   $("#username").value = "";
   boot();

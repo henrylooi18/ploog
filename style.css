@@ -41,7 +41,8 @@ body {
 
 .screen { display: none; }
 .screen.active { display: block; animation: pop-in .45s cubic-bezier(.2, 1.4, .4, 1); }
-#login.active, #ask.active, #yay.active, #nay.active {
+.loading { text-align: center; }
+#loading.active, #login.active, #ask.active, #yay.active, #nay.active {
   display: flex; align-items: center; justify-content: center; min-height: calc(100vh - 72px);
 }
 @keyframes pop-in { from { opacity: 0; transform: translateY(16px) scale(.97); } }
