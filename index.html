@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ploog 💩 track your drops</title>
+  <meta name="description" content="ploog — the bowel movement tracker your colon deserves." />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>💩</text></svg>" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="blobs" aria-hidden="true"><span></span><span></span><span></span></div>
+
+  <main class="app">
+    <!-- LOGIN -->
+    <section class="screen" id="login">
+      <div class="card hero">
+        <div class="mascot bounce">💩</div>
+        <h1 class="logo">ploog</h1>
+        <p class="tagline">track your drops. no cap.</p>
+        <form id="login-form" autocomplete="off">
+          <label for="username" class="label">what do we call you?</label>
+          <input id="username" maxlength="24" placeholder="e.g. sirpoopsalot" required />
+          <button class="btn btn-pink big" type="submit">let's go 💨</button>
+        </form>
+        <p class="fine">no password. we trust you. it's literally poop.<br />(your data stays on this device)</p>
+      </div>
+    </section>
+
+    <!-- THE QUESTION -->
+    <section class="screen" id="ask">
+      <div class="card hero">
+        <p class="greet" id="greet"></p>
+        <div class="mascot wobble">🚽</div>
+        <h2 class="question">have you pooped today?</h2>
+        <p class="sub">be honest. this is a safe space.</p>
+        <div class="choices">
+          <button class="btn btn-yellow big" id="btn-yes">YES 💩</button>
+          <button class="btn btn-ghost big" id="btn-no">no… 🥲</button>
+        </div>
+        <button class="link" id="skip-to-cal">just show me the calendar →</button>
+      </div>
+    </section>
+
+    <!-- CELEBRATION -->
+    <section class="screen" id="yay">
+      <div class="card hero yay">
+        <div class="mascot party">🥳</div>
+        <h2 class="headline" id="yay-title"></h2>
+        <p class="sub" id="yay-sub"></p>
+        <p class="label">rate the drop (optional)</p>
+        <div class="vibes" id="yay-vibes"></div>
+        <button class="btn btn-mint" id="yay-next">see my calendar 📅</button>
+      </div>
+    </section>
+
+    <!-- SADNESS -->
+    <section class="screen" id="nay">
+      <div class="card hero nay">
+        <div class="cloud" aria-hidden="true">🌧️</div>
+        <div class="mascot sad">🥲</div>
+        <h2 class="headline" id="nay-title"></h2>
+        <p class="sub" id="nay-sub"></p>
+        <ul class="tips" id="nay-tips"></ul>
+        <button class="btn btn-lilac" id="nay-next">ok 😔 show calendar</button>
+      </div>
+    </section>
+
+    <!-- CALENDAR -->
+    <section class="screen" id="cal">
+      <header class="topbar">
+        <div>
+          <h1 class="logo small">ploog</h1>
+          <p class="whoami" id="whoami"></p>
+        </div>
+        <button class="btn btn-ghost tiny" id="logout">switch user 👋</button>
+      </header>
+
+      <div class="today card" id="today-banner"></div>
+
+      <div class="stats">
+        <div class="stat card"><span class="num" id="stat-streak">0</span><span class="lbl">🔥 day streak</span></div>
+        <div class="stat card"><span class="num" id="stat-month">0</span><span class="lbl">💩 this month</span></div>
+        <div class="stat card"><span class="num" id="stat-rate">0%</span><span class="lbl">📈 hit rate</span></div>
+      </div>
+      <p class="rank" id="rank"></p>
+
+      <div class="card calendar">
+        <div class="cal-head">
+          <button class="nav" id="prev" aria-label="previous month">←</button>
+          <h2 id="month-label"></h2>
+          <button class="nav" id="next" aria-label="next month">→</button>
+        </div>
+        <div class="weekdays"><span>sun</span><span>mon</span><span>tue</span><span>wed</span><span>thu</span><span>fri</span><span>sat</span></div>
+        <div class="grid" id="grid"></div>
+        <div class="legend">
+          <span><i class="dot yes"></i> dropped</span>
+          <span><i class="dot no"></i> nothing</span>
+          <span><i class="dot none"></i> no data</span>
+        </div>
+        <p class="fine">tap any day to edit it</p>
+      </div>
+    </section>
+  </main>
+
+  <!-- DAY EDITOR -->
+  <dialog id="day-modal">
+    <form method="dialog" class="modal">
+      <h3 id="modal-date"></h3>
+      <p class="sub">so… did it happen?</p>
+      <div class="choices">
+        <button class="btn btn-ghost" value="yes" type="button" id="m-yes">💩 yep</button>
+        <button class="btn btn-ghost" value="no" type="button" id="m-no">🥲 nope</button>
+      </div>
+      <p class="label">vibe check</p>
+      <div class="vibes compact" id="m-vibes"></div>
+      <div class="modal-foot">
+        <button class="link" type="button" id="m-clear">🧹 clear day</button>
+        <button class="btn btn-mint tiny" value="close">done</button>
+      </div>
+    </form>
+  </dialog>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <div class="fx" id="fx" aria-hidden="true"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>
