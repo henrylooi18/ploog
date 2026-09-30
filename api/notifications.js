@@ -1,5 +1,6 @@
 // GET  /api/notifications            -> { items: [{ id, type, from, fromName, ts, pending? }], unread, seen }
-// POST /api/notifications { action: "read" } -> { ok: true }   marks everything as seen
+// POST /api/notifications { action: "read" }  -> { ok: true }   marks everything as seen
+// POST /api/notifications { action: "clear" } -> { ok: true }   deletes all notifications
 
 const { redis, notifKey, seenKey, inKey, NOTIF_LIMIT, fail } = require("./_redis");
 const { requireUser } = require("./_auth");
@@ -10,8 +11,11 @@ module.exports = async (req, res) => {
     if (!me) return;
 
     if (req.method === "POST") {
-      if ((req.body || {}).action !== "read") return res.status(400).json({ error: "unknown action" });
-      await redis("SET", seenKey(me), Date.now());
+      const { action } = req.body || {};
+      if (action === "read") await redis("SET", seenKey(me), Date.now());
+      // pending friend requests survive this: they still show in the ploogers section
+      else if (action === "clear") await redis("DEL", notifKey(me));
+      else return res.status(400).json({ error: "unknown action" });
       return res.status(200).json({ ok: true });
     }
     if (req.method !== "GET") return res.status(405).json({ error: "method not allowed" });

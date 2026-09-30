@@ -42,6 +42,17 @@ const commands = {
     return "OK";
   },
   DEL: (...ks) => ks.filter((k) => get(k) !== undefined && data.delete(k)).length,
+  EXISTS: (...ks) => ks.filter((k) => get(k) !== undefined).length,
+  RENAME: (from, to) => {
+    const v = get(from);
+    if (v === undefined) throw new Error("ERR no such key");
+    data.set(to, v);
+    data.delete(from);
+    if (expiry.has(from)) expiry.set(to, expiry.get(from));
+    else expiry.delete(to);
+    expiry.delete(from);
+    return "OK";
+  },
   INCR: (k) => {
     const n = (Number(get(k)) || 0) + 1;
     data.set(k, String(n));
@@ -103,7 +114,11 @@ http
       const [cmd, ...args] = (await readBody(req)) || [];
       const fn = commands[String(cmd).toUpperCase()];
       if (!fn) return res.status(400).json({ error: `fake redis doesn't know ${cmd}` });
-      return res.json({ result: fn(...args) });
+      try {
+        return res.json({ result: fn(...args) });
+      } catch (err) {
+        return res.status(400).json({ error: err.message }); // same shape as Upstash errors
+      }
     }
 
     const route = url.pathname.match(/^\/api\/([a-z]+)$/);

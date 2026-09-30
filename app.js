@@ -222,16 +222,77 @@ $("#login-form").addEventListener("submit", async (e) => {
   }
 });
 
-$("#logout").addEventListener("click", async () => {
-  try { await api("/api/auth", { method: "POST", body: { action: "logout" } }); } catch {}
+function forgetMe() {
   me = null;
   save();
   stopPolling();
   closeNotifs();
   showLogin();
+}
+
+$("#logout").addEventListener("click", async () => {
+  try { await api("/api/auth", { method: "POST", body: { action: "logout" } }); } catch {}
+  forgetMe();
 });
 
 $("#home").addEventListener("click", showCalendar);
+
+/* ---------- settings ---------- */
+
+function showSettings() {
+  closeNotifs();
+  $("#new-name").value = me.name;
+  $("#delete-name").textContent = me.name;
+  $("#delete-confirm").value = "";
+  $("#delete-btn").disabled = true;
+  $("#rename-error").textContent = $("#delete-error").textContent = "";
+  show("settings");
+}
+
+$("#settings-btn").addEventListener("click", showSettings);
+$("#settings-back").addEventListener("click", showCalendar);
+
+$("#rename-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const name = $("#new-name").value.trim();
+  const error = $("#rename-error");
+  error.textContent = "";
+  if (!name) return (error.textContent = "type a username 👀");
+  if (name === me.name) return (error.textContent = "that's already your name bestie");
+
+  $("#rename-btn").disabled = true;
+  try {
+    me = await api("/api/account", { method: "POST", body: { action: "rename", name } });
+    save();
+    $("#delete-name").textContent = me.name;
+    toast(`you're @${me.name} now ✨`);
+  } catch (err) {
+    error.textContent = err.status ? err.message : "can't reach the server 📡";
+  } finally {
+    $("#rename-btn").disabled = false;
+  }
+});
+
+// the delete button unlocks only once the username is retyped
+$("#delete-confirm").addEventListener("input", () => {
+  $("#delete-btn").disabled = $("#delete-confirm").value.trim().toLowerCase() !== me.id;
+});
+
+$("#delete-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const confirm = $("#delete-confirm").value.trim();
+  if (confirm.toLowerCase() !== me.id) return;
+
+  $("#delete-btn").disabled = true;
+  try {
+    await api("/api/account", { method: "POST", body: { action: "delete", confirm } });
+    forgetMe();
+    toast("account flushed 🚽👋");
+  } catch (err) {
+    $("#delete-error").textContent = err.status ? err.message : "can't reach the server 📡";
+    $("#delete-btn").disabled = false;
+  }
+});
 
 /* the question */
 
@@ -561,7 +622,7 @@ function renderFriends() {
           <span class="f-status ${cls}">${e}</span>
           <div class="f-info">
             <b>@${esc(f.name)}</b>
-            <span>${status} · 🔥${streak(f.log)} · 💩${monthCount(f.log)} this mo</span>
+            <span>${status} · 🔥${streak(f.log)} · 💩${monthCount(f.log)} this month</span>
           </div>
           <button class="link f-remove" data-act="remove" data-name="${esc(f.id)}" aria-label="unfriend @${esc(f.name)}">✕</button>
         </li>`;
@@ -642,7 +703,13 @@ async function loadNotifs() {
       void $("#bell").offsetWidth; // restart the animation
       $("#bell").classList.add("ring");
     }
-  } catch {}
+  } catch (err) {
+    // session ended elsewhere (logged out, renamed or deleted on another device)
+    if (err.status === 401 && me) {
+      forgetMe();
+      toast("you got logged out 👋");
+    }
+  }
 }
 
 function renderNotifs() {
@@ -664,7 +731,20 @@ function renderNotifs() {
         })
         .join("")
     : `<li class="empty">nothing yet. it's quiet… too quiet 🦗</li>`;
+  $("#notif-clear").hidden = !notifs.items.length;
 }
+
+$("#notif-clear").addEventListener("click", async () => {
+  try {
+    await api("/api/notifications", { method: "POST", body: { action: "clear" } });
+    notifs = { items: [], unread: 0, seen: Date.now() };
+    $("#badge").hidden = true;
+    renderNotifs();
+    toast("squeaky clean 🧼");
+  } catch (err) {
+    toast(err.status ? err.message : "can't reach the server 📡");
+  }
+});
 
 function openNotifs() {
   renderNotifs();

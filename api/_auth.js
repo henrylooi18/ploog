@@ -5,7 +5,10 @@ const { redis } = require("./_redis");
 
 const COOKIE = "ploog_session";
 const SESSION_DAYS = 60;
-const sessionKey = (token) => `ploog:session:${crypto.createHash("sha256").update(token).digest("hex")}`;
+// only the sha256 of a token is stored, so a database leak can't hijack sessions
+const hashToken = (token) => crypto.createHash("sha256").update(token).digest("hex");
+const sessionKey = (hash) => `ploog:session:${hash}`; // -> user id
+const userSessionsKey = (id) => `ploog:sessions:${id}`; // set of a user's session hashes
 
 /* ---------- passwords ---------- */
 
@@ -49,22 +52,37 @@ function setCookie(req, res, value, maxAge) {
   );
 }
 
-// only the sha256 of the token is stored, so a database leak can't hijack sessions
 async function startSession(req, res, id) {
   const token = crypto.randomBytes(32).toString("base64url");
-  await redis("SET", sessionKey(token), id, "EX", SESSION_DAYS * 86400);
-  setCookie(req, res, token, SESSION_DAYS * 86400);
+  const hash = hashToken(token);
+  const ttl = SESSION_DAYS * 86400;
+  await redis("SET", sessionKey(hash), id, "EX", ttl);
+  await redis("SADD", userSessionsKey(id), hash);
+  await redis("EXPIRE", userSessionsKey(id), ttl);
+  setCookie(req, res, token, ttl);
 }
 
 async function endSession(req, res) {
   const token = readCookie(req, COOKIE);
-  if (token) await redis("DEL", sessionKey(token));
+  if (token) {
+    const hash = hashToken(token);
+    const id = await redis("GET", sessionKey(hash));
+    await redis("DEL", sessionKey(hash));
+    if (id) await redis("SREM", userSessionsKey(id), hash);
+  }
   setCookie(req, res, "", 0);
+}
+
+// logs a user out everywhere. used when their username is renamed or deleted, so that
+// someone who later registers the old name can't inherit those sessions.
+async function endAllSessions(id) {
+  const hashes = (await redis("SMEMBERS", userSessionsKey(id))) || [];
+  await redis("DEL", userSessionsKey(id), ...hashes.map(sessionKey));
 }
 
 async function sessionUser(req) {
   const token = readCookie(req, COOKIE);
-  return token ? await redis("GET", sessionKey(token)) : null;
+  return token ? await redis("GET", sessionKey(hashToken(token))) : null;
 }
 
 // returns the user id, or sends a 401 and returns null
@@ -74,4 +92,6 @@ async function requireUser(req, res) {
   return id;
 }
 
-module.exports = { hashPassword, verifyPassword, startSession, endSession, sessionUser, requireUser };
+module.exports = {
+  hashPassword, verifyPassword, startSession, endSession, endAllSessions, sessionUser, requireUser,
+};

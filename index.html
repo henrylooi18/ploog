@@ -19,12 +19,16 @@
     <header class="topbar" id="topbar" hidden>
       <button class="brand" id="home" aria-label="go to calendar"><span class="logo small">ploog</span></button>
       <div class="top-actions">
+        <button class="icon-btn" id="settings-btn" aria-label="settings">⚙️</button>
         <div class="bell-wrap">
           <button class="icon-btn" id="bell" aria-label="notifications" aria-expanded="false">
             🔔<span class="badge" id="badge" hidden></span>
           </button>
           <div class="notif-panel card" id="notif-panel" hidden>
-            <div class="notif-head">notifications</div>
+            <div class="notif-head">
+              <span>notifications</span>
+              <button class="link" id="notif-clear">clear all 🧹</button>
+            </div>
             <ul class="notif-list" id="notif-list"></ul>
           </div>
         </div>
@@ -141,6 +145,37 @@
         <div id="friend-incoming"></div>
         <ul class="friend-list" id="friend-list"></ul>
         <div id="friend-outgoing"></div>
+      </div>
+    </section>
+
+    <!-- SETTINGS -->
+    <section class="screen" id="settings">
+      <button class="link back" id="settings-back">← back to calendar</button>
+
+      <div class="card settings-card">
+        <h2>settings ⚙️</h2>
+        <form id="rename-form" autocomplete="off">
+          <label class="label" for="new-name">change username</label>
+          <p class="hint">your ploogers will see the new name. other devices get logged out.</p>
+          <div class="field-row">
+            <input id="new-name" maxlength="24" />
+            <button class="btn btn-mint tiny" type="submit" id="rename-btn">save ✏️</button>
+          </div>
+          <p class="error" id="rename-error" role="alert"></p>
+        </form>
+      </div>
+
+      <div class="card settings-card danger">
+        <h2>danger zone ☢️</h2>
+        <p class="hint">
+          deleting your account wipes your poop diary, ploogers and notifications. forever. no undo. 🚽
+        </p>
+        <form id="delete-form" autocomplete="off">
+          <label class="label" for="delete-confirm">type <b id="delete-name"></b> to confirm</label>
+          <input id="delete-confirm" maxlength="24" />
+          <button class="btn btn-danger big" type="submit" id="delete-btn" disabled>delete my account 🗑️</button>
+          <p class="error" id="delete-error" role="alert"></p>
+        </form>
       </div>
     </section>
   </main>
