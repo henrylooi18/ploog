@@ -153,7 +153,7 @@ function renderBoard() {
 
   panel.innerHTML = `
     <div class="board-head">
-      <h2>leaderboard 🏆</h2>
+      <h2>rankings 🏆</h2>
       <div class="seg" role="group" aria-label="rank by">
         ${Object.entries(BOARD).map(([mode, b]) =>
           `<button type="button" data-board="${mode}" aria-pressed="${mode === boardMode}">${b.label}</button>`).join("")}

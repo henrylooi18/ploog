@@ -31,7 +31,6 @@
             <ul class="notif-list" id="notif-list"></ul>
           </div>
         </div>
-        <button class="icon-btn" id="board-btn" aria-label="leaderboard">🏆</button>
         <button class="icon-btn" id="settings-btn" aria-label="settings">⚙️</button>
         <button class="btn btn-ghost tiny" id="logout" aria-label="log out"><span class="logout-text">log out </span>👋</button>
       </div>
@@ -141,6 +140,10 @@
           <div class="card analysis" id="analysis"></div>
         </aside>
 
+        <aside class="panel panel-board" aria-label="rankings">
+          <div class="card board" id="board"></div>
+        </aside>
+
         <aside class="panel panel-ploogers" aria-label="ploogers">
           <div class="card friends">
             <div class="friends-head">
@@ -161,16 +164,11 @@
       <nav class="tabbar" id="tabbar" aria-label="sections">
         <button data-tab="diary"><span class="tab-e">📅</span>diary</button>
         <button data-tab="stats"><span class="tab-e">🧾</span>report</button>
+        <button data-tab="board"><span class="tab-e">🏆</span>rankings</button>
         <button data-tab="ploogers">
           <span class="tab-e">👯</span>ploogers<i class="tab-dot" id="ploogers-dot" hidden></i>
         </button>
       </nav>
-    </section>
-
-    <!-- LEADERBOARD -->
-    <section class="screen" id="leaderboard">
-      <button class="link back" id="board-back">← back to calendar</button>
-      <div class="card board" id="board"></div>
     </section>
 
     <!-- SETTINGS -->
