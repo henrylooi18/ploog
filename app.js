@@ -121,8 +121,6 @@ const RANKS = [
 function show(id) {
   document.querySelectorAll(".screen").forEach((s) => s.classList.toggle("active", s.id === id));
   $("#topbar").hidden = !me || id === "login" || id === "loading";
-  if (id === "leaderboard") $("#board-btn").setAttribute("aria-current", "page");
-  else $("#board-btn").removeAttribute("aria-current");
   window.scrollTo({ top: 0 });
 }
 
@@ -258,18 +256,6 @@ function showSettings() {
 }
 
 $("#settings-btn").addEventListener("click", showSettings);
-
-/* ---------- leaderboard page ---------- */
-
-function showLeaderboard() {
-  closeNotifs();
-  renderBoard();
-  show("leaderboard");
-  loadFriends(); // freshest ploogers data; re-renders the board when it arrives
-}
-
-$("#board-btn").addEventListener("click", showLeaderboard);
-$("#board-back").addEventListener("click", () => showCalendar());
 $("#settings-back").addEventListener("click", () => showCalendar());
 
 $("#rename-form").addEventListener("submit", async (e) => {
@@ -420,6 +406,7 @@ $("#tabbar").addEventListener("click", (e) => {
   if (!btn) return;
   setTab(btn.dataset.tab);
   window.scrollTo({ top: 0 });
+  if (btn.dataset.tab === "board" || btn.dataset.tab === "ploogers") loadFriends(); // freshest rankings
 });
 
 /* ---------- calendar ---------- */
@@ -732,6 +719,7 @@ function renderFriends() {
             <b>@${esc(f.name)}</b>
             <span>${status} · 🔥${streak(f.log)} · 💩${monthCount(f.log)} this month</span>
           </div>
+          <button class="btn btn-mint tiny" data-act="fart" data-name="${esc(f.id)}" aria-label="fart at @${esc(f.name)}"><span class="fart-word">fart </span>💨</button>
           <button class="link f-remove" data-act="remove" data-name="${esc(f.id)}" aria-label="unfriend @${esc(f.name)}">✕</button>
         </li>`;
     });
@@ -752,24 +740,35 @@ const FRIEND_TOASTS = {
   decline: () => "declined. boundaries 🙅",
   cancel: () => "request unsent",
   remove: () => "unfriended 💔",
+  fart: (_, name) => `you farted at @${name} 💨`,
 };
 
+// returns true if it worked
 async function friendAction(action, name) {
-  if (action === "remove" && !confirm(`unfriend @${name}? 💔`)) return;
+  if (action === "remove" && !confirm(`unfriend @${name}? 💔`)) return false;
   try {
     const { status } = await api("/api/friends", { method: "POST", body: { action, name } });
     toast(FRIEND_TOASTS[action](status, name));
+    if (action === "fart") burst(["💨", "💨", "💨", "🫢"], 16);
     await Promise.all([loadFriends(), loadNotifs()]);
     renderNotifs();
+    return true;
   } catch (err) {
     toast(err.status ? err.message : "can't reach the server 📡");
+    return false;
   }
 }
 
 // one handler for every [data-act] button: friend rows, requests, notification actions
-document.addEventListener("click", (e) => {
+document.addEventListener("click", async (e) => {
   const btn = e.target.closest("[data-act]");
-  if (btn) friendAction(btn.dataset.act, btn.dataset.name);
+  if (!btn) return;
+  const ok = await friendAction(btn.dataset.act, btn.dataset.name);
+  // a "fart back" from a notification only fires once
+  if (ok && btn.dataset.notif) {
+    firedBack.add(btn.dataset.notif);
+    renderNotifs();
+  }
 });
 
 $("#add-friend").addEventListener("submit", (e) => {
@@ -784,11 +783,14 @@ $("#add-friend").addEventListener("submit", (e) => {
 
 let notifs = { items: [], unread: 0, seen: 0 };
 let pollTimer;
+let newestNotif = null; // ts of the newest notification we've already reacted to
+const firedBack = new Set(); // fart notifications you've already farted back at
 
 const NOTIF_TEXT = {
   friend_request: (n) => ["👋", `<b>@${esc(n.fromName)}</b> wants to be your plooger`],
   friend_accept: (n) => ["🤝", `<b>@${esc(n.fromName)}</b> accepted your request. ploogers now`],
   dropped: (n) => ["💩", `<b>@${esc(n.fromName)}</b> just dropped one. slay`],
+  fart: (n) => ["💨", `<b>@${esc(n.fromName)}</b> farted at you`],
 };
 
 function timeAgo(ts) {
@@ -811,6 +813,14 @@ async function loadNotifs() {
       void $("#bell").offsetWidth; // restart the animation
       $("#bell").classList.add("ring");
     }
+    // you've been farted at: make it smell (once per fart, only for ones you haven't seen)
+    const farts = notifs.items.filter((n) => n.type === "fart" && n.ts > (newestNotif ?? notifs.seen));
+    if (farts.length) {
+      const others = farts.length > 1 ? ` (+${farts.length - 1} more)` : "";
+      toast(`@${farts[0].fromName} farted at you 💨${others}`);
+      rain(["💨", "💨", "🤢", "💨"], 40);
+    }
+    newestNotif = Math.max(newestNotif ?? 0, ...notifs.items.map((n) => n.ts));
   } catch (err) {
     // session ended elsewhere (logged out, renamed or deleted on another device)
     if (err.status === 401 && me) {
@@ -825,12 +835,19 @@ function renderNotifs() {
     ? notifs.items
         .map((n) => {
           const [e, html] = (NOTIF_TEXT[n.type] || (() => ["🔔", "something happened 👀"]))(n);
-          const actions = n.type === "friend_request" && n.pending
-            ? `<div class="n-actions">
+          let actions = "";
+          if (n.type === "friend_request" && n.pending) {
+            actions = `<div class="n-actions">
                  <button class="btn btn-mint tiny" data-act="accept" data-name="${esc(n.from)}">accept</button>
                  <button class="link" data-act="decline" data-name="${esc(n.from)}">nah</button>
-               </div>`
-            : "";
+               </div>`;
+          } else if (n.type === "fart") {
+            actions = firedBack.has(n.id)
+              ? `<div class="n-actions"><span class="n-done">farted back ✅</span></div>`
+              : `<div class="n-actions">
+                   <button class="btn btn-mint tiny" data-act="fart" data-name="${esc(n.from)}" data-notif="${esc(n.id)}">fart back 💨</button>
+                 </div>`;
+          }
           return `
             <li class="notif${n.ts > notifs.seen ? " unread" : ""}">
               <span class="n-e">${e}</span>
@@ -899,6 +916,8 @@ function startPolling() {
 function stopPolling() {
   clearInterval(pollTimer);
   notifs = { items: [], unread: 0, seen: 0 };
+  newestNotif = null;
+  firedBack.clear();
   $("#badge").hidden = true;
   // don't leak the previous user's friends to the next login
   friendsData = null;

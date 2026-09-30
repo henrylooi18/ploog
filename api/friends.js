@@ -4,6 +4,7 @@
 //   accept | decline: answer an incoming request
 //   cancel: withdraw an outgoing request
 //   remove: unfriend
+//   fart: fart at a plooger 💨 (once per 5 min per direction, so they can fart back)
 
 const {
   redis, USERS, friendsKey, inKey, outKey, idOf, getLog, namesOf, notify, fail,
@@ -78,6 +79,13 @@ module.exports = async (req, res) => {
       case "remove": {
         await Promise.all([redis("SREM", friendsKey(me), them), redis("SREM", friendsKey(them), me)]);
         return res.status(200).json({ status: "none" });
+      }
+      case "fart": {
+        if (!areFriends) return res.status(403).json({ error: "you can only fart at ploogers 💨" });
+        const fresh = await redis("SET", `ploog:fart:${me}:${them}`, 1, "NX", "EX", 300);
+        if (!fresh) return res.status(429).json({ error: "you're out of gas. try again in a few min 💨" });
+        await notify(them, { type: "fart", from: me });
+        return res.status(200).json({ status: "farted" });
       }
       default:
         return res.status(400).json({ error: "unknown action" });

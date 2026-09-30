@@ -24,10 +24,10 @@ vercel dev
 - **login**: username → password. New users create one; accounts from before passwords existed are asked to set one (their old log is kept).
 - **the question**: "have you pooped today?" → yes = celebration + optional "rate the drop" vibe (and your friends get notified); no = sadness + tips.
 - **calendar**: monthly view with streak, drops this month, hit rate and a rank. Days with more than one drop show `x2`, `x3`… Tap any day to edit it: add drops (up to 10) and pick a vibe for each. "+1 💩" on today's banner logs another one.
-- **ploogers** (friends): add by username, see their status today + streak.
+- **ploogers** (friends): add by username, see their status today + streak, and **fart 💨** at them. They get "@yourname farted at you" with a **fart back 💨** button (once per 5 min per person).
 - **🧾 poop report**: your current streak with the last 7 days shown as vibe tiles, your top vibe, and a few fun facts (record day, power day, all-time drops).
-- **🏆 leaderboard**: its own page, opened from the header (🔔 · 🏆 · ⚙️ · log out): you vs your ploogers, ranked by current streak or drops this month.
-- **layout**: on wide screens (1100px+) it's report · diary · ploogers side by side; narrower screens get a bottom tab bar (diary / report / ploogers) that remembers your last tab, with a red dot for pending plooger requests.
+- **🏆 rankings**: you vs your ploogers, ranked by current streak or drops this month.
+- **layout**: on wide screens (1100px+) it's report + rankings · diary · ploogers side by side; narrower screens get a bottom tab bar (diary / report / rankings / ploogers) that remembers your last tab, with a red dot for pending plooger requests.
 - **🔔 notifications**: friend requests (accept inline), accepted requests, "@x just dropped one". "clear all" empties the list.
 - **⚙️ settings**: change your username, or delete your account (retype your username to confirm).
 
@@ -54,7 +54,7 @@ Vercel serverless functions in `/api`. Auth is an HttpOnly, SameSite=Lax session
 - `POST /api/auth`: `{action: "lookup" | "register" | "login" | "logout", name, password}`
 - `PUT /api/log`: `{date, entry, notify}` sets a day (`entry: null` clears it)
 - `GET /api/friends`: friends (with logs) + incoming/outgoing requests
-- `POST /api/friends`: `{action: "request" | "accept" | "decline" | "cancel" | "remove", name}`
+- `POST /api/friends`: `{action: "request" | "accept" | "decline" | "cancel" | "remove" | "fart", name}`
 - `GET /api/notifications` / `POST /api/notifications {action: "read" | "clear"}`
 - `POST /api/account`: `{action: "rename", name}` or `{action: "delete", confirm}`
 
@@ -70,6 +70,6 @@ Vercel serverless functions in `/api`. Auth is an HttpOnly, SameSite=Lax session
 - `index.html`: all screens
 - `style.css`: the vibes
 - `app.js`: logic, sync, calendar, friends, notifications, tabs, confetti
-- `stats.js`: the poop report and the leaderboard
+- `stats.js`: the poop report and the rankings
 - `api/`: serverless routes (`_redis.js` and `_auth.js` are shared helpers, not routes)
 - `dev/server.js`: local server with a fake Redis (not deployed)
