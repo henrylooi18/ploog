@@ -6,31 +6,37 @@ const $ = (sel) => document.querySelector(sel);
 const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
 const shuffle = (arr) => [...arr].sort(() => Math.random() - 0.5);
 
+const esc = (s) =>
+  String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+
 /* ---------- storage ---------- */
 
-const STORE_KEY = "ploog:v1";
+// cache of { id, name, log } for the logged-in user. the session itself is an HttpOnly cookie.
+const STORE_KEY = "ploog:v2";
+try { localStorage.removeItem("ploog:v1"); } catch {} // pre-password cache
 
 function load() {
   try {
     const data = JSON.parse(localStorage.getItem(STORE_KEY));
-    if (data && data.users) return data;
+    if (data && data.log) return data;
   } catch {}
-  return { users: {}, current: null };
+  return null;
 }
 
-let db = load();
+let me = load();
 
 function save() {
-  try { localStorage.setItem(STORE_KEY, JSON.stringify(db)); } catch {}
+  try {
+    if (me) localStorage.setItem(STORE_KEY, JSON.stringify(me));
+    else localStorage.removeItem(STORE_KEY);
+  } catch {}
 }
 
-const user = () => db.users[db.current];
-
-function setEntry(key, entry) {
-  if (entry) user().log[key] = entry;
-  else delete user().log[key];
+function setEntry(key, entry, { notify = false } = {}) {
+  if (entry) me.log[key] = entry;
+  else delete me.log[key];
   save();
-  api("/api/log", { method: "PUT", body: { u: db.current, date: key, entry: entry || null } })
+  api("/api/log", { method: "PUT", body: { date: key, entry: entry || null, notify } })
     .catch(() => toast("couldn't sync to the cloud 😭"));
 }
 
@@ -42,19 +48,11 @@ async function api(path, { method = "GET", body } = {}) {
     headers: body ? { "Content-Type": "application/json" } : undefined,
     body: body ? JSON.stringify(body) : undefined,
   });
-  if (!res.ok) throw new Error(`${method} ${path} -> ${res.status}`);
-  return res.json();
-}
-
-// pull the latest log so check-ins from other devices show up
-async function refresh() {
-  try {
-    const { log } = await api(`/api/log?u=${encodeURIComponent(db.current)}`);
-    user().log = log;
-    save();
-  } catch {
-    // offline or no server (e.g. plain static preview): keep the cached log
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw Object.assign(new Error(data.error || `${method} ${path} -> ${res.status}`), { status: res.status });
   }
+  return data;
 }
 
 /* ---------- dates (always local time, never UTC) ---------- */
@@ -116,6 +114,7 @@ const RANKS = [
 
 function show(id) {
   document.querySelectorAll(".screen").forEach((s) => s.classList.toggle("active", s.id === id));
+  $("#topbar").hidden = !me || id === "login" || id === "loading";
   window.scrollTo({ top: 0 });
 }
 
@@ -129,57 +128,123 @@ function toast(msg) {
 }
 
 async function boot() {
-  if (db.current && db.users[db.current]) {
-    show("loading");
-    await refresh();
-    user().log[todayKey()] ? showCalendar() : showAsk();
-  } else {
-    show("login");
-    setTimeout(() => $("#username").focus(), 50);
+  show("loading");
+  try {
+    me = await api("/api/auth");
+  } catch (err) {
+    // 401 = logged out. anything else = offline, so keep the cached copy
+    if (err.status === 401) me = null;
   }
+  save();
+  me ? enter() : showLogin();
 }
 
-/* login */
+function enter() {
+  startPolling();
+  me.log[todayKey()] ? showCalendar() : showAsk();
+}
+
+/* login: username first, then log in / create a password / set one for pre-password accounts */
+
+const LOGIN_COPY = {
+  login: ["welcome back 👋", "your poop diary awaits.", "log in 🔓"],
+  new: ["new here? love that for you ✨", "make a password so nobody reads your poop diary.", "create account 🚀"],
+  "set-password": ["OG alert 🚨", "you're from the before times. set a password to lock your diary.", "lock it in 🔐"],
+};
+
+let loginMode = "name";
+
+function showLogin() {
+  $("#username").value = "";
+  setLoginMode("name");
+  show("login");
+  setTimeout(() => $("#username").focus(), 50);
+}
+
+function setLoginMode(mode) {
+  loginMode = mode;
+  const naming = mode === "name";
+  $("#username").readOnly = !naming;
+  $("#name-label").hidden = !naming;
+  $("#pass-step").hidden = naming;
+  $("#login-back").hidden = naming;
+  $("#password2").hidden = mode === "login";
+  $("#password").autocomplete = mode === "login" ? "current-password" : "new-password";
+  $("#password").value = $("#password2").value = "";
+  $("#login-error").textContent = "";
+  if (naming) {
+    $("#login-btn").textContent = "next 👉";
+    return;
+  }
+  const [title, sub, cta] = LOGIN_COPY[mode];
+  $("#pass-title").textContent = title;
+  $("#pass-sub").textContent = sub;
+  $("#login-btn").textContent = cta;
+  setTimeout(() => $("#password").focus(), 50);
+}
+
+$("#login-back").addEventListener("click", () => {
+  setLoginMode("name");
+  $("#username").focus();
+});
 
 $("#login-form").addEventListener("submit", async (e) => {
   e.preventDefault();
+  const error = $("#login-error");
   const name = $("#username").value.trim();
-  if (!name) return;
-  show("loading");
-  try {
-    const data = await api("/api/login", { method: "POST", body: { name } });
-    db.users[data.id] = { name: data.name, log: data.log };
-    db.current = data.id;
-  } catch {
-    // no server reachable: carry on locally
-    const id = name.toLowerCase();
-    if (!db.users[id]) db.users[id] = { name, log: {} };
-    db.current = id;
-    toast("offline mode: saving on this device only 📴");
+  const password = $("#password").value;
+  if (!name) return (error.textContent = "type a username first 👀");
+  if (loginMode !== "name") {
+    if (password.length < 6) return (error.textContent = "password needs 6+ characters 🙏");
+    if (loginMode !== "login" && password !== $("#password2").value) {
+      return (error.textContent = "passwords don't match 🤔");
+    }
   }
-  save();
-  $("#username").value = "";
-  boot();
+
+  const btn = $("#login-btn");
+  btn.disabled = true;
+  error.textContent = "";
+  try {
+    if (loginMode === "name") {
+      const { status } = await api("/api/auth", { method: "POST", body: { action: "lookup", name } });
+      setLoginMode(status);
+      return;
+    }
+    const action = loginMode === "login" ? "login" : "register";
+    me = await api("/api/auth", { method: "POST", body: { action, name, password } });
+    save();
+    toast(action === "login" ? `welcome back, ${me.name} 💩` : "locked in 🔐");
+    enter();
+  } catch (err) {
+    error.textContent = err.status ? err.message : "can't reach the server 📡";
+  } finally {
+    btn.disabled = false;
+  }
 });
 
-$("#logout").addEventListener("click", () => {
-  db.current = null;
+$("#logout").addEventListener("click", async () => {
+  try { await api("/api/auth", { method: "POST", body: { action: "logout" } }); } catch {}
+  me = null;
   save();
-  boot();
+  stopPolling();
+  closeNotifs();
+  showLogin();
 });
+
+$("#home").addEventListener("click", showCalendar);
 
 /* the question */
 
 function showAsk() {
   const h = new Date().getHours();
   const hi = h < 5 ? "it's late bestie" : h < 12 ? "gm" : h < 18 ? "good afternoon" : "good evening";
-  $("#greet").textContent = `${hi}, ${user().name} ☀️`;
+  $("#greet").textContent = `${hi}, ${me.name} ☀️`;
   show("ask");
 }
 
 $("#btn-yes").addEventListener("click", () => {
-  const prev = user().log[todayKey()];
-  setEntry(todayKey(), { p: 1, v: prev && prev.p ? prev.v : undefined });
+  const prev = me.log[todayKey()];
+  setEntry(todayKey(), { p: 1, v: prev && prev.p ? prev.v : undefined }, { notify: true });
   showYay();
 });
 
@@ -209,7 +274,7 @@ function showYay() {
   $("#yay-title").textContent = title;
   $("#yay-sub").textContent = sub;
   const drawVibes = () =>
-    renderVibes($("#yay-vibes"), user().log[todayKey()].v, (v) => {
+    renderVibes($("#yay-vibes"), me.log[todayKey()].v, (v) => {
       setEntry(todayKey(), { p: 1, v: v.id });
       drawVibes();
       toast(`${v.e} ${v.n}. noted 📝`);
@@ -248,11 +313,12 @@ function showCalendar() {
   viewYear = now.getFullYear();
   viewMonth = now.getMonth();
   renderCalendar();
+  renderFriends();
   show("cal");
+  loadFriends();
 }
 
-function streak() {
-  const log = user().log;
+function streak(log) {
   const d = new Date();
   // if today isn't logged yet, the streak is still alive from yesterday
   if (!log[keyOf(d)]) d.setDate(d.getDate() - 1);
@@ -265,7 +331,7 @@ function streak() {
 }
 
 function renderToday() {
-  const entry = user().log[todayKey()];
+  const entry = me.log[todayKey()];
   const el = $("#today-banner");
   let e, title, sub, cls;
   if (!entry) {
@@ -285,7 +351,7 @@ function renderToday() {
 }
 
 function renderCalendar() {
-  const u = user();
+  const u = me;
   $("#whoami").textContent = `@${u.name}'s poop diary`;
   renderToday();
 
@@ -341,7 +407,7 @@ function renderCalendar() {
   }
 
   const rate = logged ? yes / logged : 0;
-  $("#stat-streak").textContent = streak();
+  $("#stat-streak").textContent = streak(me.log);
   $("#stat-month").textContent = yes;
   $("#stat-rate").textContent = `${Math.round(rate * 100)}%`;
   const rank = logged ? RANKS.find(([min]) => rate >= min)[1] : RANKS[RANKS.length - 1][1];
@@ -373,7 +439,7 @@ function openDay(key, date) {
 }
 
 function renderModal() {
-  const entry = user().log[editingKey];
+  const entry = me.log[editingKey];
   $("#m-yes").classList.toggle("on", !!entry && entry.p === 1);
   $("#m-no").classList.toggle("on", !!entry && entry.p === 0);
   renderVibes($("#m-vibes"), entry && entry.p ? entry.v : null, (v) => {
@@ -384,7 +450,7 @@ function renderModal() {
 }
 
 $("#m-yes").addEventListener("click", () => {
-  const entry = user().log[editingKey];
+  const entry = me.log[editingKey];
   setEntry(editingKey, { p: 1, v: entry && entry.p ? entry.v : undefined });
   renderModal();
   renderCalendar();
@@ -447,5 +513,208 @@ function burst(emojis, count) {
     setTimeout(() => s.remove(), 1800);
   }
 }
+
+/* ---------- friends ---------- */
+
+let friendsData = null; // null until the first load, so we never flash "no ploogers yet"
+
+async function loadFriends() {
+  try {
+    friendsData = await api("/api/friends");
+    renderFriends();
+  } catch {}
+}
+
+function monthCount(log) {
+  const month = todayKey().slice(0, 7);
+  return Object.entries(log).filter(([day, e]) => day.startsWith(month) && e.p).length;
+}
+
+function renderFriends() {
+  if (!friendsData) return;
+  const { friends, incoming, outgoing } = friendsData;
+  const tKey = todayKey();
+  $("#friend-count").textContent = friends.length || "";
+
+  $("#friend-incoming").innerHTML = incoming
+    .map((f) => `
+      <div class="request">
+        <span>👋 <b>@${esc(f.name)}</b> wants to be your plooger</span>
+        <span class="req-actions">
+          <button class="btn btn-mint tiny" data-act="accept" data-name="${esc(f.id)}">accept</button>
+          <button class="link" data-act="decline" data-name="${esc(f.id)}">nah</button>
+        </span>
+      </div>`)
+    .join("");
+
+  // ploogers who haven't checked in yet float to the top
+  const rank = (f) => (f.log[tKey] ? (f.log[tKey].p ? 2 : 1) : 0);
+  const rows = [...friends]
+    .sort((a, b) => rank(a) - rank(b) || a.name.localeCompare(b.name))
+    .map((f) => {
+      const entry = f.log[tKey];
+      const [e, cls, status] = !entry
+        ? ["👀", "pending", "no check-in yet"]
+        : entry.p ? ["💩", "yes", "dropped ✅"] : ["🥲", "no", "nothing yet"];
+      return `
+        <li class="friend">
+          <span class="f-status ${cls}">${e}</span>
+          <div class="f-info">
+            <b>@${esc(f.name)}</b>
+            <span>${status} · 🔥${streak(f.log)} · 💩${monthCount(f.log)} this mo</span>
+          </div>
+          <button class="link f-remove" data-act="remove" data-name="${esc(f.id)}" aria-label="unfriend @${esc(f.name)}">✕</button>
+        </li>`;
+    });
+  $("#friend-list").innerHTML = rows.length
+    ? rows.join("")
+    : `<li class="empty">no ploogers yet. pooping alone is valid, but ploogers make it ✨social✨</li>`;
+
+  $("#friend-outgoing").innerHTML = outgoing.length
+    ? `<p class="fine">waiting on ${outgoing
+        .map((f) => `<span class="chip">@${esc(f.name)}<button data-act="cancel" data-name="${esc(f.id)}" aria-label="cancel request">✕</button></span>`)
+        .join(" ")} ⏳</p>`
+    : "";
+}
+
+const FRIEND_TOASTS = {
+  request: (status, name) => (status === "friends" ? `you and @${name} are ploogers now 🤝` : `request sent to @${name} 📨`),
+  accept: () => "new plooger unlocked 🤝",
+  decline: () => "declined. boundaries 🙅",
+  cancel: () => "request unsent",
+  remove: () => "unfriended 💔",
+};
+
+async function friendAction(action, name) {
+  if (action === "remove" && !confirm(`unfriend @${name}? 💔`)) return;
+  try {
+    const { status } = await api("/api/friends", { method: "POST", body: { action, name } });
+    toast(FRIEND_TOASTS[action](status, name));
+    await Promise.all([loadFriends(), loadNotifs()]);
+    renderNotifs();
+  } catch (err) {
+    toast(err.status ? err.message : "can't reach the server 📡");
+  }
+}
+
+// one handler for every [data-act] button: friend rows, requests, notification actions
+document.addEventListener("click", (e) => {
+  const btn = e.target.closest("[data-act]");
+  if (btn) friendAction(btn.dataset.act, btn.dataset.name);
+});
+
+$("#add-friend").addEventListener("submit", (e) => {
+  e.preventDefault();
+  const name = $("#friend-name").value.trim();
+  if (!name) return;
+  $("#friend-name").value = "";
+  friendAction("request", name);
+});
+
+/* ---------- notifications ---------- */
+
+let notifs = { items: [], unread: 0, seen: 0 };
+let pollTimer;
+
+const NOTIF_TEXT = {
+  friend_request: (n) => ["👋", `<b>@${esc(n.fromName)}</b> wants to be your plooger`],
+  friend_accept: (n) => ["🤝", `<b>@${esc(n.fromName)}</b> accepted your request. ploogers now`],
+  dropped: (n) => ["💩", `<b>@${esc(n.fromName)}</b> just dropped one. slay`],
+};
+
+function timeAgo(ts) {
+  const s = Math.max(0, (Date.now() - ts) / 1000);
+  if (s < 60) return "just now";
+  if (s < 3600) return `${Math.floor(s / 60)}m ago`;
+  if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
+  return `${Math.floor(s / 86400)}d ago`;
+}
+
+async function loadNotifs() {
+  try {
+    const prevUnread = notifs.unread;
+    notifs = await api("/api/notifications");
+    const badge = $("#badge");
+    badge.hidden = !notifs.unread;
+    badge.textContent = notifs.unread > 9 ? "9+" : notifs.unread;
+    if (notifs.unread > prevUnread) {
+      $("#bell").classList.remove("ring");
+      void $("#bell").offsetWidth; // restart the animation
+      $("#bell").classList.add("ring");
+    }
+  } catch {}
+}
+
+function renderNotifs() {
+  $("#notif-list").innerHTML = notifs.items.length
+    ? notifs.items
+        .map((n) => {
+          const [e, html] = (NOTIF_TEXT[n.type] || (() => ["🔔", "something happened 👀"]))(n);
+          const actions = n.type === "friend_request" && n.pending
+            ? `<div class="n-actions">
+                 <button class="btn btn-mint tiny" data-act="accept" data-name="${esc(n.from)}">accept</button>
+                 <button class="link" data-act="decline" data-name="${esc(n.from)}">nah</button>
+               </div>`
+            : "";
+          return `
+            <li class="notif${n.ts > notifs.seen ? " unread" : ""}">
+              <span class="n-e">${e}</span>
+              <div class="n-body"><p>${html}</p>${actions}<span class="n-time">${timeAgo(n.ts)}</span></div>
+            </li>`;
+        })
+        .join("")
+    : `<li class="empty">nothing yet. it's quiet… too quiet 🦗</li>`;
+}
+
+function openNotifs() {
+  renderNotifs();
+  $("#notif-panel").hidden = false;
+  $("#bell").setAttribute("aria-expanded", "true");
+  if (notifs.unread) {
+    notifs.unread = 0;
+    $("#badge").hidden = true;
+    api("/api/notifications", { method: "POST", body: { action: "read" } }).catch(() => {});
+  }
+}
+
+function closeNotifs() {
+  $("#notif-panel").hidden = true;
+  $("#bell").setAttribute("aria-expanded", "false");
+  // once closed, what was shown counts as seen
+  notifs.seen = Date.now();
+}
+
+$("#bell").addEventListener("click", () => ($("#notif-panel").hidden ? openNotifs() : closeNotifs()));
+
+document.addEventListener("click", (e) => {
+  if (!$("#notif-panel").hidden && !e.composedPath().includes($(".bell-wrap"))) closeNotifs();
+});
+
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && !$("#notif-panel").hidden) closeNotifs();
+});
+
+function poll() {
+  if (!me || document.hidden) return;
+  loadNotifs();
+  if ($("#cal").classList.contains("active")) loadFriends();
+}
+
+function startPolling() {
+  stopPolling();
+  loadNotifs();
+  pollTimer = setInterval(poll, 30000);
+}
+
+function stopPolling() {
+  clearInterval(pollTimer);
+  notifs = { items: [], unread: 0, seen: 0 };
+  $("#badge").hidden = true;
+  // don't leak the previous user's friends to the next login
+  friendsData = null;
+  ["#friend-incoming", "#friend-list", "#friend-outgoing", "#friend-count"].forEach((sel) => ($(sel).innerHTML = ""));
+}
+
+document.addEventListener("visibilitychange", poll);
 
 boot();

@@ -15,6 +15,23 @@
   <div class="blobs" aria-hidden="true"><span></span><span></span><span></span></div>
 
   <main class="app">
+    <!-- HEADER (logged in only) -->
+    <header class="topbar" id="topbar" hidden>
+      <button class="brand" id="home" aria-label="go to calendar"><span class="logo small">ploog</span></button>
+      <div class="top-actions">
+        <div class="bell-wrap">
+          <button class="icon-btn" id="bell" aria-label="notifications" aria-expanded="false">
+            🔔<span class="badge" id="badge" hidden></span>
+          </button>
+          <div class="notif-panel card" id="notif-panel" hidden>
+            <div class="notif-head">notifications</div>
+            <ul class="notif-list" id="notif-list"></ul>
+          </div>
+        </div>
+        <button class="btn btn-ghost tiny" id="logout">log out 👋</button>
+      </div>
+    </header>
+
     <!-- LOADING -->
     <section class="screen" id="loading">
       <div class="loading">
@@ -28,13 +45,20 @@
       <div class="card hero">
         <div class="mascot bounce">💩</div>
         <h1 class="logo">ploog</h1>
-        <p class="tagline">track your drops. no cap.</p>
-        <form id="login-form" autocomplete="off">
-          <label for="username" class="label">what do we call you?</label>
-          <input id="username" maxlength="24" placeholder="e.g. sirpoopsalot" required />
-          <button class="btn btn-pink big" type="submit">let's go 💨</button>
+        <p class="tagline">track your drops</p>
+        <form id="login-form">
+          <label for="username" class="label" id="name-label">what do we call you?</label>
+          <input id="username" name="username" autocomplete="username" maxlength="24" placeholder="e.g. sirpoopsalot" />
+          <div id="pass-step" hidden>
+            <p class="step-title" id="pass-title"></p>
+            <p class="sub small" id="pass-sub"></p>
+            <input id="password" name="password" type="password" maxlength="100" placeholder="password" />
+            <input id="password2" type="password" autocomplete="new-password" maxlength="100" placeholder="type it again" />
+          </div>
+          <p class="error" id="login-error" role="alert"></p>
+          <button class="btn btn-pink big" type="submit" id="login-btn">next 👉</button>
+          <button class="link" type="button" id="login-back" hidden>← not you?</button>
         </form>
-        <p class="fine">no password. we trust you. it's literally poop.<br />(synced to the cloud ☁️ so anyone with your username can peek 👀)</p>
       </div>
     </section>
 
@@ -79,14 +103,7 @@
 
     <!-- CALENDAR -->
     <section class="screen" id="cal">
-      <header class="topbar">
-        <div>
-          <h1 class="logo small">ploog</h1>
-          <p class="whoami" id="whoami"></p>
-        </div>
-        <button class="btn btn-ghost tiny" id="logout">switch user 👋</button>
-      </header>
-
+      <p class="whoami" id="whoami"></p>
       <div class="today card" id="today-banner"></div>
 
       <div class="stats">
@@ -110,6 +127,20 @@
           <span><i class="dot none"></i> no data</span>
         </div>
         <p class="fine">tap any day to edit it</p>
+      </div>
+
+      <div class="card friends">
+        <div class="friends-head">
+          <h2>ploogers 👯</h2>
+          <span class="count" id="friend-count"></span>
+        </div>
+        <form class="add-friend" id="add-friend" autocomplete="off">
+          <input id="friend-name" maxlength="24" placeholder="add by username" />
+          <button class="btn btn-yellow tiny" type="submit">add ➕</button>
+        </form>
+        <div id="friend-incoming"></div>
+        <ul class="friend-list" id="friend-list"></ul>
+        <div id="friend-outgoing"></div>
       </div>
     </section>
   </main>
