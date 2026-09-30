@@ -70,6 +70,12 @@ const VIBES = [
   { id: 4, e: "🍦", n: "soft serve" },
   { id: 5, e: "🌊", n: "tsunami" },
 ];
+const vibeOf = (id) => VIBES.find((x) => x.id === id);
+
+const MAX_DROPS = 10;
+// the vibe of each drop that day (0 = no vibe). older entries were { p: 1, v }, i.e. one drop
+const drops = (entry) => (!entry || !entry.p ? [] : Array.isArray(entry.d) ? entry.d : [entry.v || 0]);
+const dropsEntry = (d) => ({ p: 1, d });
 
 const YAY = [
   ["SLAY. 💅", "you ate… and then you un-ate."],
@@ -115,6 +121,8 @@ const RANKS = [
 function show(id) {
   document.querySelectorAll(".screen").forEach((s) => s.classList.toggle("active", s.id === id));
   $("#topbar").hidden = !me || id === "login" || id === "loading";
+  if (id === "leaderboard") $("#board-btn").setAttribute("aria-current", "page");
+  else $("#board-btn").removeAttribute("aria-current");
   window.scrollTo({ top: 0 });
 }
 
@@ -235,7 +243,7 @@ $("#logout").addEventListener("click", async () => {
   forgetMe();
 });
 
-$("#home").addEventListener("click", showCalendar);
+$("#home").addEventListener("click", () => showCalendar());
 
 /* ---------- settings ---------- */
 
@@ -250,7 +258,19 @@ function showSettings() {
 }
 
 $("#settings-btn").addEventListener("click", showSettings);
-$("#settings-back").addEventListener("click", showCalendar);
+
+/* ---------- leaderboard page ---------- */
+
+function showLeaderboard() {
+  closeNotifs();
+  renderBoard();
+  show("leaderboard");
+  loadFriends(); // freshest ploogers data; re-renders the board when it arrives
+}
+
+$("#board-btn").addEventListener("click", showLeaderboard);
+$("#board-back").addEventListener("click", () => showCalendar());
+$("#settings-back").addEventListener("click", () => showCalendar());
 
 $("#rename-form").addEventListener("submit", async (e) => {
   e.preventDefault();
@@ -304,17 +324,25 @@ function showAsk() {
 }
 
 $("#btn-yes").addEventListener("click", () => {
-  const prev = me.log[todayKey()];
-  setEntry(todayKey(), { p: 1, v: prev && prev.p ? prev.v : undefined }, { notify: true });
+  const today = drops(me.log[todayKey()]);
+  setEntry(todayKey(), dropsEntry(today.length ? today : [0]), { notify: true });
   showYay();
 });
+
+// log one more drop today (from the "+1" button once you've already dropped)
+function addDropToday() {
+  const today = drops(me.log[todayKey()]);
+  if (today.length >= MAX_DROPS) return toast(`${MAX_DROPS} a day is the limit. see a doctor maybe? 🩺`);
+  setEntry(todayKey(), dropsEntry([...today, 0]), { notify: true });
+  showYay();
+}
 
 $("#btn-no").addEventListener("click", () => {
   setEntry(todayKey(), { p: 0 });
   showNay();
 });
 
-$("#skip-to-cal").addEventListener("click", showCalendar);
+$("#skip-to-cal").addEventListener("click", () => showCalendar("diary"));
 
 /* celebration */
 
@@ -331,23 +359,29 @@ function renderVibes(container, current, onPick) {
 }
 
 function showYay() {
-  const [title, sub] = pick(YAY);
+  const count = drops(me.log[todayKey()]).length;
+  const [title, sub] = count > 1 ? [`x${count} combo 🔥`, "the colon is on a roll today."] : pick(YAY);
   $("#yay-title").textContent = title;
   $("#yay-sub").textContent = sub;
-  const drawVibes = () =>
-    renderVibes($("#yay-vibes"), me.log[todayKey()].v, (v) => {
-      setEntry(todayKey(), { p: 1, v: v.id });
+  // the picker rates the drop that was just logged (the last one today)
+  const drawVibes = () => {
+    const today = drops(me.log[todayKey()]);
+    renderVibes($("#yay-vibes"), today[today.length - 1], (v) => {
+      const d = drops(me.log[todayKey()]);
+      d[d.length - 1] = v.id;
+      setEntry(todayKey(), dropsEntry(d));
       drawVibes();
       toast(`${v.e} ${v.n}. noted 📝`);
       burst([v.e], 14);
     });
+  };
   drawVibes();
   show("yay");
   rain(["💩", "🎉", "✨", "🧻", "💩", "🥳", "💖"], 70);
   setTimeout(() => burst(["💩", "🎊", "⭐"], 30), 150);
 }
 
-$("#yay-next").addEventListener("click", showCalendar);
+$("#yay-next").addEventListener("click", () => showCalendar("diary"));
 
 /* sadness */
 
@@ -361,21 +395,46 @@ function showNay() {
 }
 
 $("#nay-next").addEventListener("click", () => {
-  showCalendar();
+  showCalendar("diary");
   toast("tomorrow's a new day 🌅");
+});
+
+/* ---------- dashboard tabs (mobile only; desktop shows all three panels) ---------- */
+
+const TAB_KEY = "ploog:tab";
+let currentTab = "diary";
+try { currentTab = localStorage.getItem(TAB_KEY) || "diary"; } catch {}
+
+function setTab(tab) {
+  currentTab = tab;
+  try { localStorage.setItem(TAB_KEY, tab); } catch {}
+  $("#dash").dataset.tab = tab;
+  document.querySelectorAll("#tabbar [data-tab]").forEach((b) => {
+    if (b.dataset.tab === tab) b.setAttribute("aria-current", "page");
+    else b.removeAttribute("aria-current");
+  });
+}
+
+$("#tabbar").addEventListener("click", (e) => {
+  const btn = e.target.closest("[data-tab]");
+  if (!btn) return;
+  setTab(btn.dataset.tab);
+  window.scrollTo({ top: 0 });
 });
 
 /* ---------- calendar ---------- */
 
 let viewYear, viewMonth;
 
-function showCalendar() {
+// tab: which mobile tab to land on; defaults to the last one used
+function showCalendar(tab = currentTab) {
   const now = new Date();
   viewYear = now.getFullYear();
   viewMonth = now.getMonth();
   renderCalendar();
   renderFriends();
   show("cal");
+  setTab(tab);
   loadFriends();
 }
 
@@ -394,21 +453,26 @@ function streak(log) {
 function renderToday() {
   const entry = me.log[todayKey()];
   const el = $("#today-banner");
+  const today = drops(entry);
   let e, title, sub, cls;
   if (!entry) {
     [e, title, sub, cls] = ["👀", "today: pending…", "you haven't checked in yet", "pending"];
-  } else if (entry.p) {
-    const v = VIBES.find((x) => x.id === entry.v);
-    [e, title, sub, cls] = ["💩", "today: dropped ✅", v ? `vibe: ${v.e} ${v.n}` : "slay responsibly", "yes"];
+  } else if (today.length) {
+    const v = vibeOf(today[0]);
+    [e, cls] = ["💩", "yes"];
+    title = today.length > 1 ? `today: dropped x${today.length} 🔥` : "today: dropped ✅";
+    sub = today.length > 1
+      ? `<span class="drop-chips">${today.map((id) => vibeOf(id)?.e || "💩").join(" ")}</span>`
+      : v ? `vibe: ${v.e} ${v.n}` : "slay responsibly";
   } else {
     [e, title, sub, cls] = ["🥲", "today: nothing yet", "the day isn't over. believe.", "no"];
   }
-  el.className = `today card ${cls}`;
+  el.className = `today-banner card ${cls}`;
   el.innerHTML = `
     <span class="big-e">${e}</span>
     <div class="grow"><div class="t-title">${title}</div><div class="t-sub">${sub}</div></div>
-    <button class="btn btn-pink tiny" id="reanswer">${entry ? "update" : "check in"}</button>`;
-  $("#reanswer").addEventListener("click", showAsk);
+    <button class="btn btn-pink tiny" id="reanswer">${today.length ? "+1 💩" : entry ? "update" : "check in"}</button>`;
+  $("#reanswer").addEventListener("click", today.length ? addDropToday : showAsk);
 }
 
 function renderCalendar() {
@@ -435,7 +499,7 @@ function renderCalendar() {
     grid.appendChild(blank);
   }
 
-  let yes = 0, logged = 0;
+  let pooped = 0, total = 0, logged = 0; // days pooped, drops, days logged
   for (let day = 1; day <= daysInMonth; day++) {
     const date = new Date(viewYear, viewMonth, day);
     const key = keyOf(date);
@@ -447,32 +511,37 @@ function renderCalendar() {
     if (future) btn.classList.add("future");
     if (key === tKey) btn.classList.add("today");
 
-    let emoji = "", vibe = "";
+    const d = drops(entry);
+    let emoji = "", corner = "";
     if (entry) {
       logged++;
-      if (entry.p) {
-        yes++;
+      if (d.length) {
+        pooped++;
+        total += d.length;
         btn.classList.add("yes");
         emoji = "💩";
-        const v = VIBES.find((x) => x.id === entry.v);
-        if (v) vibe = v.e;
+        // several drops: show the count instead of a vibe
+        corner = d.length > 1 ? `<span class="v count">x${d.length}</span>` : `<span class="v">${vibeOf(d[0])?.e || ""}</span>`;
       } else {
         btn.classList.add("no");
         emoji = "🥲";
       }
     }
-    btn.innerHTML = `<span class="d">${day}</span><span class="e">${emoji}</span><span class="v">${vibe}</span>`;
-    btn.setAttribute("aria-label", `${date.toDateString()}${entry ? (entry.p ? ", pooped" : ", no poop") : ""}`);
+    btn.innerHTML = `<span class="d">${day}</span><span class="e">${emoji}</span>${corner}`;
+    const label = !entry ? "" : d.length ? `, pooped${d.length > 1 ? ` ${d.length} times` : ""}` : ", no poop";
+    btn.setAttribute("aria-label", date.toDateString() + label);
     if (!future) btn.addEventListener("click", () => openDay(key, date));
     grid.appendChild(btn);
   }
 
-  const rate = logged ? yes / logged : 0;
+  const rate = logged ? pooped / logged : 0;
   $("#stat-streak").textContent = streak(me.log);
-  $("#stat-month").textContent = yes;
+  $("#stat-month").textContent = total;
   $("#stat-rate").textContent = `${Math.round(rate * 100)}%`;
   const rank = logged ? RANKS.find(([min]) => rate >= min)[1] : RANKS[RANKS.length - 1][1];
   $("#rank").innerHTML = `rank: <b>${rank}</b>`;
+  renderAnalysis();
+  renderBoard();
 }
 
 $("#prev").addEventListener("click", () => {
@@ -501,20 +570,54 @@ function openDay(key, date) {
 
 function renderModal() {
   const entry = me.log[editingKey];
-  $("#m-yes").classList.toggle("on", !!entry && entry.p === 1);
-  $("#m-no").classList.toggle("on", !!entry && entry.p === 0);
-  renderVibes($("#m-vibes"), entry && entry.p ? entry.v : null, (v) => {
-    setEntry(editingKey, { p: 1, v: v.id });
-    renderModal();
-    renderCalendar();
-  });
+  const d = drops(entry);
+  $("#m-yes").classList.toggle("on", d.length > 0);
+  $("#m-no").classList.toggle("on", !!entry && !d.length);
+
+  $("#m-drops").innerHTML = d.length
+    ? `<p class="label">the drops ${d.length > 1 ? `<span class="count-chip">x${d.length}</span>` : ""}</p>
+       <ol class="drops">
+         ${d.map((vibe, i) => `
+           <li class="drop">
+             <span class="drop-n">#${i + 1}</span>
+             <div class="mini-vibes">
+               ${VIBES.map((v) => `
+                 <button type="button" class="mini-vibe${v.id === vibe ? " on" : ""}" data-drop="${i}" data-vibe="${v.id}"
+                   title="${v.n}" aria-label="drop ${i + 1}: ${v.n}" aria-pressed="${v.id === vibe}">${v.e}</button>`).join("")}
+             </div>
+             ${d.length > 1 ? `<button type="button" class="drop-x" data-remove="${i}" aria-label="remove drop ${i + 1}">✕</button>` : ""}
+           </li>`).join("")}
+       </ol>
+       ${d.length < MAX_DROPS ? `<button type="button" class="btn btn-yellow tiny add-drop" id="m-add">+ add another 💩</button>` : ""}`
+    : "";
 }
 
-$("#m-yes").addEventListener("click", () => {
-  const entry = me.log[editingKey];
-  setEntry(editingKey, { p: 1, v: entry && entry.p ? entry.v : undefined });
+function updateDrops(d) {
+  setEntry(editingKey, dropsEntry(d));
   renderModal();
   renderCalendar();
+}
+
+$("#m-drops").addEventListener("click", (e) => {
+  const d = drops(me.log[editingKey]);
+  const vibeBtn = e.target.closest("[data-vibe]");
+  const removeBtn = e.target.closest("[data-remove]");
+  if (vibeBtn) {
+    const i = Number(vibeBtn.dataset.drop), v = Number(vibeBtn.dataset.vibe);
+    d[i] = d[i] === v ? 0 : v; // tap the chosen vibe again to unset it
+    updateDrops(d);
+  } else if (removeBtn) {
+    d.splice(Number(removeBtn.dataset.remove), 1);
+    updateDrops(d);
+  } else if (e.target.closest("#m-add")) {
+    updateDrops([...d, 0]);
+    burst(["💩"], 8);
+  }
+});
+
+$("#m-yes").addEventListener("click", () => {
+  const d = drops(me.log[editingKey]);
+  updateDrops(d.length ? d : [0]);
   burst(["💩", "✨"], 12);
 });
 
@@ -588,7 +691,9 @@ async function loadFriends() {
 
 function monthCount(log) {
   const month = todayKey().slice(0, 7);
-  return Object.entries(log).filter(([day, e]) => day.startsWith(month) && e.p).length;
+  return Object.entries(log)
+    .filter(([day]) => day.startsWith(month))
+    .reduce((sum, [, e]) => sum + drops(e).length, 0);
 }
 
 function renderFriends() {
@@ -596,6 +701,8 @@ function renderFriends() {
   const { friends, incoming, outgoing } = friendsData;
   const tKey = todayKey();
   $("#friend-count").textContent = friends.length || "";
+  $("#ploogers-dot").hidden = !incoming.length;
+  renderBoard();
 
   $("#friend-incoming").innerHTML = incoming
     .map((f) => `
@@ -614,9 +721,10 @@ function renderFriends() {
     .sort((a, b) => rank(a) - rank(b) || a.name.localeCompare(b.name))
     .map((f) => {
       const entry = f.log[tKey];
+      const n = drops(entry).length;
       const [e, cls, status] = !entry
         ? ["👀", "pending", "no check-in yet"]
-        : entry.p ? ["💩", "yes", "dropped ✅"] : ["🥲", "no", "nothing yet"];
+        : n ? ["💩", "yes", n > 1 ? `dropped x${n} 🔥` : "dropped ✅"] : ["🥲", "no", "nothing yet"];
       return `
         <li class="friend">
           <span class="f-status ${cls}">${e}</span>
@@ -758,6 +866,7 @@ function openNotifs() {
 }
 
 function closeNotifs() {
+  if ($("#notif-panel").hidden) return;
   $("#notif-panel").hidden = true;
   $("#bell").setAttribute("aria-expanded", "false");
   // once closed, what was shown counts as seen
@@ -766,12 +875,13 @@ function closeNotifs() {
 
 $("#bell").addEventListener("click", () => ($("#notif-panel").hidden ? openNotifs() : closeNotifs()));
 
+// clicking outside the notifications dropdown (or pressing escape) closes it
 document.addEventListener("click", (e) => {
-  if (!$("#notif-panel").hidden && !e.composedPath().includes($(".bell-wrap"))) closeNotifs();
+  if (!e.composedPath().includes($(".bell-wrap"))) closeNotifs();
 });
 
 document.addEventListener("keydown", (e) => {
-  if (e.key === "Escape" && !$("#notif-panel").hidden) closeNotifs();
+  if (e.key === "Escape") closeNotifs();
 });
 
 function poll() {
@@ -793,6 +903,7 @@ function stopPolling() {
   // don't leak the previous user's friends to the next login
   friendsData = null;
   ["#friend-incoming", "#friend-list", "#friend-outgoing", "#friend-count"].forEach((sel) => ($(sel).innerHTML = ""));
+  $("#ploogers-dot").hidden = true;
 }
 
 document.addEventListener("visibilitychange", poll);

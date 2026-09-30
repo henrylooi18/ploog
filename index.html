@@ -19,7 +19,6 @@
     <header class="topbar" id="topbar" hidden>
       <button class="brand" id="home" aria-label="go to calendar"><span class="logo small">ploog</span></button>
       <div class="top-actions">
-        <button class="icon-btn" id="settings-btn" aria-label="settings">⚙️</button>
         <div class="bell-wrap">
           <button class="icon-btn" id="bell" aria-label="notifications" aria-expanded="false">
             🔔<span class="badge" id="badge" hidden></span>
@@ -32,7 +31,9 @@
             <ul class="notif-list" id="notif-list"></ul>
           </div>
         </div>
-        <button class="btn btn-ghost tiny" id="logout">log out 👋</button>
+        <button class="icon-btn" id="board-btn" aria-label="leaderboard">🏆</button>
+        <button class="icon-btn" id="settings-btn" aria-label="settings">⚙️</button>
+        <button class="btn btn-ghost tiny" id="logout" aria-label="log out"><span class="logout-text">log out </span>👋</button>
       </div>
     </header>
 
@@ -105,47 +106,71 @@
       </div>
     </section>
 
-    <!-- CALENDAR -->
+    <!-- DASHBOARD: 3 columns on desktop, one tab at a time on mobile -->
     <section class="screen" id="cal">
-      <p class="whoami" id="whoami"></p>
-      <div class="today card" id="today-banner"></div>
+      <div class="dash" id="dash" data-tab="diary">
+        <div class="panel panel-diary">
+          <p class="whoami" id="whoami"></p>
+          <div class="today-banner card" id="today-banner"></div>
 
-      <div class="stats">
-        <div class="stat card"><span class="num" id="stat-streak">0</span><span class="lbl">🔥 day streak</span></div>
-        <div class="stat card"><span class="num" id="stat-month">0</span><span class="lbl">💩 this month</span></div>
-        <div class="stat card"><span class="num" id="stat-rate">0%</span><span class="lbl">📈 hit rate</span></div>
-      </div>
-      <p class="rank" id="rank"></p>
+          <div class="stats">
+            <div class="stat card"><span class="num" id="stat-streak">0</span><span class="lbl">🔥 day streak</span></div>
+            <div class="stat card"><span class="num" id="stat-month">0</span><span class="lbl">💩 this month</span></div>
+            <div class="stat card"><span class="num" id="stat-rate">0%</span><span class="lbl">📈 hit rate</span></div>
+          </div>
+          <p class="rank" id="rank"></p>
 
-      <div class="card calendar">
-        <div class="cal-head">
-          <button class="nav" id="prev" aria-label="previous month">←</button>
-          <h2 id="month-label"></h2>
-          <button class="nav" id="next" aria-label="next month">→</button>
+          <div class="card calendar">
+            <div class="cal-head">
+              <button class="nav" id="prev" aria-label="previous month">←</button>
+              <h2 id="month-label"></h2>
+              <button class="nav" id="next" aria-label="next month">→</button>
+            </div>
+            <div class="weekdays"><span>sun</span><span>mon</span><span>tue</span><span>wed</span><span>thu</span><span>fri</span><span>sat</span></div>
+            <div class="grid" id="grid"></div>
+            <div class="legend">
+              <span><i class="dot yes"></i> dropped</span>
+              <span><i class="dot no"></i> nothing</span>
+              <span><i class="dot none"></i> no data</span>
+            </div>
+            <p class="fine">tap any day to edit it</p>
+          </div>
         </div>
-        <div class="weekdays"><span>sun</span><span>mon</span><span>tue</span><span>wed</span><span>thu</span><span>fri</span><span>sat</span></div>
-        <div class="grid" id="grid"></div>
-        <div class="legend">
-          <span><i class="dot yes"></i> dropped</span>
-          <span><i class="dot no"></i> nothing</span>
-          <span><i class="dot none"></i> no data</span>
-        </div>
-        <p class="fine">tap any day to edit it</p>
+
+        <aside class="panel panel-stats" aria-label="your poop report">
+          <div class="card analysis" id="analysis"></div>
+        </aside>
+
+        <aside class="panel panel-ploogers" aria-label="ploogers">
+          <div class="card friends">
+            <div class="friends-head">
+              <h2>ploogers 👯</h2>
+              <span class="count" id="friend-count"></span>
+            </div>
+            <form class="add-friend" id="add-friend" autocomplete="off">
+              <input id="friend-name" maxlength="24" placeholder="add by username" />
+              <button class="btn btn-yellow tiny" type="submit">add ➕</button>
+            </form>
+            <div id="friend-incoming"></div>
+            <ul class="friend-list" id="friend-list"></ul>
+            <div id="friend-outgoing"></div>
+          </div>
+        </aside>
       </div>
 
-      <div class="card friends">
-        <div class="friends-head">
-          <h2>ploogers 👯</h2>
-          <span class="count" id="friend-count"></span>
-        </div>
-        <form class="add-friend" id="add-friend" autocomplete="off">
-          <input id="friend-name" maxlength="24" placeholder="add by username" />
-          <button class="btn btn-yellow tiny" type="submit">add ➕</button>
-        </form>
-        <div id="friend-incoming"></div>
-        <ul class="friend-list" id="friend-list"></ul>
-        <div id="friend-outgoing"></div>
-      </div>
+      <nav class="tabbar" id="tabbar" aria-label="sections">
+        <button data-tab="diary"><span class="tab-e">📅</span>diary</button>
+        <button data-tab="stats"><span class="tab-e">🧾</span>report</button>
+        <button data-tab="ploogers">
+          <span class="tab-e">👯</span>ploogers<i class="tab-dot" id="ploogers-dot" hidden></i>
+        </button>
+      </nav>
+    </section>
+
+    <!-- LEADERBOARD -->
+    <section class="screen" id="leaderboard">
+      <button class="link back" id="board-back">← back to calendar</button>
+      <div class="card board" id="board"></div>
     </section>
 
     <!-- SETTINGS -->
@@ -189,8 +214,7 @@
         <button class="btn btn-ghost" value="yes" type="button" id="m-yes">💩 yep</button>
         <button class="btn btn-ghost" value="no" type="button" id="m-no">🥲 nope</button>
       </div>
-      <p class="label">vibe check</p>
-      <div class="vibes compact" id="m-vibes"></div>
+      <div id="m-drops"></div>
       <div class="modal-foot">
         <button class="link" type="button" id="m-clear">🧹 clear day</button>
         <button class="btn btn-mint tiny" value="close">done</button>
@@ -201,6 +225,7 @@
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
   <div class="fx" id="fx" aria-hidden="true"></div>
 
+  <script src="stats.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

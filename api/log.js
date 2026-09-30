@@ -1,5 +1,7 @@
 // PUT /api/log { date, entry | null, notify? } -> { ok: true }
-//   entry = { p: 0 | 1, v?: 1..5 }, null clears the day.
+//   entry = { p: 0 } for "nope", or { p: 1, d: [vibe, ...] } with one vibe per drop that day
+//   (vibe 1..5, 0 = no vibe). null clears the day.
+//   older entries were stored as { p: 1, v?: 1..5 }, meaning a single drop; still accepted.
 //   notify: true tells your friends you just dropped one (once per day).
 // reading your own log comes from GET /api/auth; friends' logs from GET /api/friends.
 
@@ -7,12 +9,14 @@ const { redis, logKey, friendsKey, notify, fail } = require("./_redis");
 const { requireUser } = require("./_auth");
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
+const MAX_DROPS = 10;
 
 function cleanEntry(entry) {
   if (!entry || (entry.p !== 0 && entry.p !== 1)) return null;
-  const out = { p: entry.p };
-  if (entry.p === 1 && Number.isInteger(entry.v) && entry.v >= 1 && entry.v <= 5) out.v = entry.v;
-  return out;
+  if (entry.p === 0) return { p: 0 };
+  const drops = Array.isArray(entry.d) ? entry.d : [entry.v];
+  if (!drops.length || drops.length > MAX_DROPS) return null;
+  return { p: 1, d: drops.map((v) => (Number.isInteger(v) && v >= 1 && v <= 5 ? v : 0)) };
 }
 
 module.exports = async (req, res) => {
