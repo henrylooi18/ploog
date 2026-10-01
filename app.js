@@ -632,7 +632,7 @@ modal.addEventListener("click", (e) => {
 
 /* ---------- "add the creator?" after your first ever drop ---------- */
 
-const CREATOR = "henpoop";
+const CREATOR = "henpoops";
 const askedKey = () => `ploog:creator-asked:${me.id}`;
 
 const hasDropped = () => Object.values(me.log).some((e) => drops(e).length);
@@ -666,7 +666,7 @@ $("#creator-add").addEventListener("click", async () => {
 
 $("#creator-nah").addEventListener("click", () => {
   $("#creator-modal").close();
-  toast("no worries. you can add @henpoop anytime 👀");
+  toast(`no worries. you can add @${CREATOR} anytime 👀`);
 });
 
 $("#creator-modal").addEventListener("click", (e) => {
