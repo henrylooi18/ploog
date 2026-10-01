@@ -345,13 +345,9 @@ dialog::backdrop { background: rgba(46, 26, 15, .45); backdrop-filter: blur(3px)
 #m-no.on { background: var(--lilac); }
 .modal-foot { display: flex; justify-content: space-between; align-items: center; }
 
-/* "add the creator?" popup */
-.creator .mascot { font-size: 56px; margin-bottom: 0; }
-.creator h3 { margin: 4px 0 2px; }
-.creator-card {
-  display: flex; align-items: center; gap: 10px; margin: 0 0 18px; padding: 10px 12px; text-align: left;
-  background: #fff3b8; border: 2.5px solid var(--ink); border-radius: 16px;
-}
+/* suggested plooger */
+.suggest-label { margin: 14px 0 6px; font-size: 13px; font-weight: 600; color: var(--muted); }
+.friend.suggest { background: #fff3b8; border: 2.5px dashed var(--ink); }
 
 /* drops in the day editor */
 .count-chip {

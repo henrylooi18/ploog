@@ -25,7 +25,7 @@ vercel dev
 - **the question**: "have you pooped today?" → yes = celebration + optional "rate the drop" vibe (and your friends get notified); no = sadness + tips.
 - **calendar**: monthly view with streak, drops this month, hit rate and a rank. Days with more than one drop show `x2`, `x3`… Tap any day to edit it: add drops (up to 10) and pick a vibe for each. "+1 💩" on today's banner logs another one.
 - **ploogers** (friends): add by username, see their status today + streak, and **fart 💨** at them. They get "@yourname farted at you" with a **fart back 💨** button (once per 5 min per person).
-- **👑 add the creator**: right after a user's very first drop, a one-time popup offers to add @henpoops (ploog's creator) as a plooger. Skipped if that account doesn't exist or they're already linked.
+- **👑 suggested plooger**: the ploogers list suggests adding @henpoop (ploog's creator) until you add them or dismiss it with ✕. Hidden if that account doesn't exist.
 - **🧾 poop report**: your current streak with the last 7 days shown as vibe tiles, your top vibe, and a few fun facts (record day, power day, all-time drops).
 - **🏆 rankings**: you vs your ploogers, ranked by current streak or drops this month.
 - **layout**: on wide screens (1100px+) it's report + rankings · diary · ploogers side by side; narrower screens get a bottom tab bar (diary / report / rankings / ploogers) that remembers your last tab, with a red dot for pending plooger requests.

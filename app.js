@@ -310,11 +310,9 @@ function showAsk() {
 }
 
 $("#btn-yes").addEventListener("click", () => {
-  const first = !hasDropped();
   const today = drops(me.log[todayKey()]);
   setEntry(todayKey(), dropsEntry(today.length ? today : [0]), { notify: true });
   showYay();
-  if (first) setTimeout(maybeAskCreator, 1600); // let the confetti land first
 });
 
 // log one more drop today (from the "+1" button once you've already dropped)
@@ -605,11 +603,9 @@ $("#m-drops").addEventListener("click", (e) => {
 });
 
 $("#m-yes").addEventListener("click", () => {
-  const first = !hasDropped();
   const d = drops(me.log[editingKey]);
   updateDrops(d.length ? d : [0]);
   burst(["💩", "✨"], 12);
-  if (first) setTimeout(maybeAskCreator, 600); // opens on top of the day editor
 });
 
 $("#m-no").addEventListener("click", () => {
@@ -630,47 +626,49 @@ modal.addEventListener("click", (e) => {
   if (e.target === modal) modal.close();
 });
 
-/* ---------- "add the creator?" after your first ever drop ---------- */
+/* ---------- suggested plooger: the creator ---------- */
 
-const CREATOR = "henpoops";
-const askedKey = () => `ploog:creator-asked:${me.id}`;
+const CREATOR = "henpoop";
+const dismissedKey = () => `ploog:creator-dismissed:${me.id}`;
+let creatorExists = null; // looked up once per visit
 
-const hasDropped = () => Object.values(me.log).some((e) => drops(e).length);
-
-async function maybeAskCreator() {
-  if (!me || me.id === CREATOR) return;
+async function checkCreator() {
+  if (creatorExists !== null) return;
   try {
-    if (localStorage.getItem(askedKey())) return;
+    const { status } = await api("/api/auth", { method: "POST", body: { action: "lookup", name: CREATOR } });
+    creatorExists = status !== "new";
+    renderSuggestion();
   } catch {}
-
-  try {
-    // only ask if the creator's account exists and you're not already linked up
-    const [{ status }, f] = await Promise.all([
-      api("/api/auth", { method: "POST", body: { action: "lookup", name: CREATOR } }),
-      api("/api/friends"),
-    ]);
-    const linked = [...f.friends, ...f.incoming, ...f.outgoing].some((p) => p.id === CREATOR);
-    if (status === "new" || linked) return;
-  } catch {
-    return; // offline: don't nag
-  }
-
-  try { localStorage.setItem(askedKey(), "1"); } catch {}
-  $("#creator-modal").showModal();
 }
 
-$("#creator-add").addEventListener("click", async () => {
-  $("#creator-modal").close();
-  if (await friendAction("request", CREATOR)) burst(["👑", "💩", "✨"], 18);
-});
+function renderSuggestion() {
+  const el = $("#friend-suggest");
+  let dismissed = false;
+  try { dismissed = !!localStorage.getItem(dismissedKey()); } catch {}
+  const linked = friendsData &&
+    [...friendsData.friends, ...friendsData.incoming, ...friendsData.outgoing].some((p) => p.id === CREATOR);
 
-$("#creator-nah").addEventListener("click", () => {
-  $("#creator-modal").close();
-  toast(`no worries. you can add @${CREATOR} anytime 👀`);
-});
+  if (!me || !friendsData || !creatorExists || me.id === CREATOR || linked || dismissed) {
+    el.innerHTML = "";
+    return;
+  }
+  el.innerHTML = `
+    <p class="suggest-label">suggested for you</p>
+    <div class="friend suggest">
+      <span class="f-status yes">👑</span>
+      <div class="f-info">
+        <b>@${CREATOR}</b>
+        <span>creator of ploog. poops daily (allegedly)</span>
+      </div>
+      <button class="btn btn-yellow tiny" data-act="request" data-name="${CREATOR}">add ➕</button>
+      <button class="link f-remove" id="suggest-dismiss" aria-label="dismiss suggestion">✕</button>
+    </div>`;
+}
 
-$("#creator-modal").addEventListener("click", (e) => {
-  if (e.target === $("#creator-modal")) $("#creator-modal").close();
+document.addEventListener("click", (e) => {
+  if (!e.target.closest("#suggest-dismiss")) return;
+  try { localStorage.setItem(dismissedKey(), "1"); } catch {}
+  renderSuggestion();
 });
 
 /* ---------- particle effects ---------- */
@@ -720,6 +718,7 @@ async function loadFriends() {
   try {
     friendsData = await api("/api/friends");
     renderFriends();
+    checkCreator();
   } catch {}
 }
 
@@ -737,6 +736,7 @@ function renderFriends() {
   $("#friend-count").textContent = friends.length || "";
   $("#ploogers-dot").hidden = !incoming.length;
   renderBoard();
+  renderSuggestion();
 
   $("#friend-incoming").innerHTML = incoming
     .map((f) => `
@@ -968,7 +968,7 @@ function stopPolling() {
   $("#badge").hidden = true;
   // don't leak the previous user's friends to the next login
   friendsData = null;
-  ["#friend-incoming", "#friend-list", "#friend-outgoing", "#friend-count"].forEach((sel) => ($(sel).innerHTML = ""));
+  ["#friend-incoming", "#friend-list", "#friend-outgoing", "#friend-count", "#friend-suggest"].forEach((sel) => ($(sel).innerHTML = ""));
   $("#ploogers-dot").hidden = true;
 }
 
