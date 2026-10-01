@@ -32,6 +32,13 @@ const of = (key, Type) => {
 
 const commands = {
   GET: (k) => get(k) ?? null,
+  MGET: (...ks) => ks.map((k) => (typeof get(k) === "string" ? get(k) : null)),
+  // returns every match in one page (cursor "0" = done); fine for a dev-sized dataset
+  SCAN: (cursor, ...opts) => {
+    const i = opts.findIndex((o) => String(o).toUpperCase() === "MATCH");
+    const re = new RegExp(`^${(i >= 0 ? opts[i + 1] : "*").replace(/[.+?^${}()|[\]\\]/g, "\\$&").replace(/\*/g, ".*")}$`);
+    return ["0", [...data.keys()].filter((k) => get(k) !== undefined && re.test(k))];
+  },
   SET: (k, v, ...opts) => {
     const up = opts.map((o) => String(o).toUpperCase());
     if (up.includes("NX") && get(k) !== undefined) return null;
@@ -69,11 +76,14 @@ const commands = {
   HSETNX: (k, f, v) => (of(k, Map).has(f) ? 0 : (get(k).set(f, String(v)), 1)),
   HDEL: (k, ...fs) => fs.filter((f) => get(k)?.delete(f)).length,
   HEXISTS: (k, f) => (get(k)?.has(f) ? 1 : 0),
+  HLEN: (k) => get(k)?.size ?? 0,
+  HKEYS: (k) => [...(get(k)?.keys() || [])],
   HGETALL: (k) => [...(get(k) || new Map())].flat(),
   SADD: (k, ...ms) => ms.filter((m) => !of(k, Set).has(m) && get(k).add(m)).length,
   SREM: (k, ...ms) => ms.filter((m) => get(k)?.delete(m)).length,
   SMEMBERS: (k) => [...(get(k) || [])],
   SISMEMBER: (k, m) => (get(k)?.has(m) ? 1 : 0),
+  SCARD: (k) => get(k)?.size ?? 0,
   LPUSH: (k, ...vs) => {
     const l = of(k, Array);
     vs.forEach((v) => l.unshift(String(v)));

@@ -252,10 +252,117 @@ function showSettings() {
   $("#delete-confirm").value = "";
   $("#delete-btn").disabled = true;
   $("#rename-error").textContent = $("#delete-error").textContent = "";
+  $("#admin-card").hidden = !me.admin;
   show("settings");
 }
 
 $("#settings-btn").addEventListener("click", showSettings);
+
+/* ---------- admin page (admins only; every call is checked on the server too) ---------- */
+
+let adminUsers = [];
+let confirmingDelete = null; // username whose row is asking "type it to confirm"
+
+async function showAdmin() {
+  show("admin");
+  $("#admin-search").value = "";
+  confirmingDelete = null;
+  $("#admin-count").textContent = "loading users…";
+  $("#admin-list").innerHTML = "";
+  try {
+    ({ users: adminUsers } = await api("/api/admin"));
+    renderAdmin();
+  } catch (err) {
+    $("#admin-count").textContent = err.status ? err.message : "can't reach the server 📡";
+  }
+}
+
+function renderAdmin() {
+  const q = $("#admin-search").value.trim().toLowerCase();
+  const shown = adminUsers.filter((u) => u.id.includes(q));
+  $("#admin-count").textContent =
+    `${adminUsers.length} users${q ? ` · ${shown.length} matching` : ""}`;
+
+  $("#admin-list").innerHTML = shown.length
+    ? shown.map((u) => {
+        const meta = `${plural(u.days, "day")} logged · ${plural(u.ploogers, "plooger")}${u.password ? "" : " · no password"}
+          <br />${joinedText(u)}`;
+        if (u.id === me.id) {
+          return `<li class="admin-row"><div class="f-info"><b>@${esc(u.name)} <small>(you)</small></b><span>${meta}</span></div></li>`;
+        }
+        if (u.id === confirmingDelete) {
+          return `
+            <li class="admin-row confirming">
+              <p>type <b>${esc(u.id)}</b> to delete @${esc(u.name)} forever</p>
+              <div class="field-row">
+                <input data-admin-confirm="${esc(u.id)}" autocomplete="off" aria-label="type ${esc(u.id)} to confirm" />
+                <button class="btn btn-danger tiny" data-admin-delete="${esc(u.id)}" disabled>delete 🗑️</button>
+              </div>
+              <button class="link" data-admin-cancel>cancel</button>
+            </li>`;
+        }
+        return `
+          <li class="admin-row">
+            <div class="f-info"><b>@${esc(u.name)}</b><span>${meta}</span></div>
+            <button class="btn btn-ghost tiny" data-admin-ask="${esc(u.id)}">delete</button>
+          </li>`;
+      }).join("")
+    : `<li class="empty">no users match "${esc(q)}"</li>`;
+
+  const input = $("[data-admin-confirm]");
+  if (input) input.focus();
+}
+
+// "joined 1 oct 2026 · 2h ago"; older accounts only have their first logged day to go on
+function joinedText(u) {
+  const fmt = (d) => d.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" }).toLowerCase();
+  if (u.joined) return `🐣 joined ${fmt(new Date(u.joined))} · ${timeAgo(u.joined)}`;
+  if (u.firstLog) return `🐣 joined around ${fmt(parseKey(u.firstLog))} (first log)`;
+  return "🐣 joined before tracking";
+}
+
+$("#admin-open").addEventListener("click", showAdmin);
+$("#admin-back").addEventListener("click", showSettings);
+$("#admin-search").addEventListener("input", renderAdmin);
+
+$("#admin-list").addEventListener("click", async (e) => {
+  const ask = e.target.closest("[data-admin-ask]");
+  const del = e.target.closest("[data-admin-delete]");
+  if (ask) {
+    confirmingDelete = ask.dataset.adminAsk;
+    renderAdmin();
+  } else if (e.target.closest("[data-admin-cancel]")) {
+    confirmingDelete = null;
+    renderAdmin();
+  } else if (del) {
+    const id = del.dataset.adminDelete;
+    del.disabled = true;
+    try {
+      await api("/api/admin", { method: "POST", body: { action: "delete", name: id, confirm: $("[data-admin-confirm]").value } });
+      adminUsers = adminUsers.filter((u) => u.id !== id);
+      confirmingDelete = null;
+      renderAdmin();
+      toast(`@${id} deleted 🗑️`);
+    } catch (err) {
+      toast(err.status ? err.message : "can't reach the server 📡");
+      del.disabled = false;
+    }
+  }
+});
+
+// the delete button unlocks only once the username is retyped
+$("#admin-list").addEventListener("input", (e) => {
+  const input = e.target.closest("[data-admin-confirm]");
+  if (!input) return;
+  $("[data-admin-delete]").disabled = input.value.trim().toLowerCase() !== input.dataset.adminConfirm;
+});
+
+$("#admin-list").addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && e.target.closest("[data-admin-confirm]")) {
+    const btn = $("[data-admin-delete]");
+    if (!btn.disabled) btn.click();
+  }
+});
 $("#settings-back").addEventListener("click", () => showCalendar());
 
 $("#rename-form").addEventListener("submit", async (e) => {

@@ -92,6 +92,24 @@ async function requireUser(req, res) {
   return id;
 }
 
+/* ---------- admins ---------- */
+
+// comma-separated usernames in the PLOOG_ADMINS env var; defaults to the creator
+const admins = () =>
+  (process.env.PLOOG_ADMINS || "henpoop").split(",").map((s) => s.trim().toLowerCase()).filter(Boolean);
+const isAdmin = (id) => !!id && admins().includes(id);
+
+// returns the admin's id, or sends a 401/403 and returns null
+async function requireAdmin(req, res) {
+  const id = await requireUser(req, res);
+  if (id && !isAdmin(id)) {
+    res.status(403).json({ error: "admins only 🛑" });
+    return null;
+  }
+  return id;
+}
+
 module.exports = {
   hashPassword, verifyPassword, startSession, endSession, endAllSessions, sessionUser, requireUser,
+  isAdmin, requireAdmin,
 };

@@ -176,6 +176,12 @@
     <section class="screen" id="settings">
       <button class="link back" id="settings-back">← back to calendar</button>
 
+      <div class="card settings-card admin-card" id="admin-card" hidden>
+        <h2>admin 🛠️</h2>
+        <p class="hint">you run this place. manage everyone's accounts.</p>
+        <button class="btn btn-mint" type="button" id="admin-open">open admin page →</button>
+      </div>
+
       <div class="card settings-card">
         <h2>settings ⚙️</h2>
         <form id="rename-form" autocomplete="off">
@@ -200,6 +206,17 @@
           <button class="btn btn-danger big" type="submit" id="delete-btn" disabled>delete my account 🗑️</button>
           <p class="error" id="delete-error" role="alert"></p>
         </form>
+      </div>
+    </section>
+
+    <!-- ADMIN (admins only; the server checks too) -->
+    <section class="screen" id="admin">
+      <button class="link back" id="admin-back">← back to settings</button>
+      <div class="card settings-card">
+        <h2>admin 🛠️</h2>
+        <p class="hint" id="admin-count"></p>
+        <input id="admin-search" class="admin-search" placeholder="search users" autocomplete="off" />
+        <ul class="admin-list" id="admin-list"></ul>
       </div>
     </section>
   </main>

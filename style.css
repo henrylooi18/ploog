@@ -224,6 +224,22 @@ input[readonly] { background: #f6ecdf; color: var(--muted); }
 .danger { background: #fff0f2; border-style: dashed; }
 .danger input { text-align: left; font-size: 17px; }
 
+/* admin */
+#admin { max-width: 560px; margin: 0 auto; }
+.admin-card { background: #e9fbf2; }
+.admin-search { text-align: left; font-size: 16px; padding: 10px 14px; margin-bottom: 12px; }
+.admin-list { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; }
+.admin-row {
+  display: flex; align-items: center; gap: 10px; padding: 10px 12px;
+  background: #fff; border: 2px solid #e6d5c3; border-radius: 14px;
+}
+.admin-row b small { color: var(--muted); font-weight: 500; }
+.admin-row.confirming { flex-direction: column; align-items: stretch; gap: 8px; background: #fff0f2; border-color: #ff6b81; }
+.admin-row.confirming p { margin: 0; font-size: 14px; }
+.admin-row.confirming .field-row input { font-size: 15px; padding: 8px 12px; }
+.admin-row.confirming .link { margin: 0; align-self: flex-start; }
+.admin-list .empty { text-align: center; color: var(--muted); padding: 10px; }
+
 .friends { padding: 18px 16px; }
 .friends-head { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
 .friends-head h2 { margin: 0; font-size: 22px; }

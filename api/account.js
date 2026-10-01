@@ -4,27 +4,9 @@
 // POST /api/account { action: "delete", confirm } -> { ok: true }
 //   deletes the account. `confirm` must be your username (retyped, any case).
 
-const {
-  redis, USERS, AUTH, logKey, friendsKey, inKey, outKey, notifKey, seenKey,
-  cleanName, idOf, getLog, fail,
-} = require("./_redis");
+const { redis, USERS, JOINED, AUTH, cleanName, idOf, getLog, fail } = require("./_redis");
 const { requireUser, startSession, endSession, endAllSessions } = require("./_auth");
-
-const ownKeys = (id) => [logKey(id), friendsKey(id), inKey(id), outKey(id), notifKey(id), seenKey(id)];
-
-// sets in other accounts that contain `id`
-async function references(id) {
-  const [friends, incoming, outgoing] = await Promise.all([
-    redis("SMEMBERS", friendsKey(id)),
-    redis("SMEMBERS", inKey(id)),
-    redis("SMEMBERS", outKey(id)),
-  ]);
-  return [
-    ...(friends || []).map(friendsKey),
-    ...(incoming || []).map(outKey), // they asked us: we're in their outgoing
-    ...(outgoing || []).map(inKey), // we asked them: we're in their incoming
-  ];
-}
+const { ownKeys, references, deleteAccount } = require("./_accounts");
 
 async function rename(req, res, me) {
   const name = cleanName(req.body.name);
@@ -54,7 +36,9 @@ async function rename(req, res, me) {
   }));
 
   await redis("HSET", AUTH, id, await redis("HGET", AUTH, me));
-  await Promise.all([redis("HDEL", AUTH, me), redis("HDEL", USERS, me)]);
+  const joined = await redis("HGET", JOINED, me);
+  if (joined) await redis("HSET", JOINED, id, joined);
+  await Promise.all([redis("HDEL", AUTH, me), redis("HDEL", USERS, me), redis("HDEL", JOINED, me)]);
 
   // log out other devices (their sessions point at the old name); this one gets a fresh session
   await endAllSessions(me);
@@ -66,11 +50,7 @@ async function remove(req, res, me) {
   if (idOf(req.body.confirm) !== me) {
     return res.status(400).json({ error: "that's not your username 🤨" });
   }
-  const refs = await references(me);
-  await Promise.all(refs.map((key) => redis("SREM", key, me)));
-  await redis("DEL", ...ownKeys(me));
-  await Promise.all([redis("HDEL", AUTH, me), redis("HDEL", USERS, me)]);
-  await endAllSessions(me);
+  await deleteAccount(me);
   await endSession(req, res); // clears this device's cookie
   res.status(200).json({ ok: true });
 }

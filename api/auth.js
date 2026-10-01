@@ -1,19 +1,19 @@
-// GET  /api/auth                                  -> { id, name, log } for the logged-in user, or 401
+// GET  /api/auth                                  -> { id, name, log, admin } for the logged-in user, or 401
 // POST /api/auth { action: "lookup", name }       -> { status: "new" | "set-password" | "login" }
 // POST /api/auth { action: "register", name, password } -> { id, name, log }
 //   creates a new account, or sets the first password on an existing (pre-password) one
 // POST /api/auth { action: "login", name, password }    -> { id, name, log }
 // POST /api/auth { action: "logout" }             -> { ok: true }
 
-const { redis, USERS, AUTH, cleanName, idOf, getLog, fail } = require("./_redis");
-const { hashPassword, verifyPassword, startSession, endSession, sessionUser } = require("./_auth");
+const { redis, USERS, JOINED, AUTH, cleanName, idOf, getLog, fail } = require("./_redis");
+const { hashPassword, verifyPassword, startSession, endSession, sessionUser, isAdmin } = require("./_auth");
 
 const MAX_FAILS = 10; // failed logins per username per 15 min
 const failKey = (id) => `ploog:fails:${id}`;
 
 async function me(id) {
   const [name, log] = await Promise.all([redis("HGET", USERS, id), getLog(id)]);
-  return { id, name: name || id, log };
+  return { id, name: name || id, log, admin: isAdmin(id) };
 }
 
 module.exports = async (req, res) => {
@@ -47,7 +47,8 @@ module.exports = async (req, res) => {
     }
 
     if (action === "register") {
-      await redis("HSETNX", USERS, id, name);
+      // brand new account (not a pre-password one setting its first password): note when they joined
+      if (await redis("HSETNX", USERS, id, name)) await redis("HSET", JOINED, id, Date.now());
       // HSETNX so two people can't race to set the first password
       const created = await redis("HSETNX", AUTH, id, await hashPassword(password));
       if (!created) return res.status(409).json({ error: "that username already has a password 👀" });

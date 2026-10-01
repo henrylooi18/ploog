@@ -22,6 +22,7 @@ async function redis(...command) {
 /* ---------- keys ---------- */
 
 const USERS = "ploog:users"; // hash: id -> display name
+const JOINED = "ploog:joined"; // hash: id -> ms timestamp of sign-up (accounts made before this existed have none)
 const AUTH = "ploog:auth"; // hash: id -> password hash
 const logKey = (id) => `ploog:log:${id}`; // hash: YYYY-MM-DD -> JSON entry
 const friendsKey = (id) => `ploog:friends:${id}`; // set of ids
@@ -65,6 +66,6 @@ function fail(res, err) {
 }
 
 module.exports = {
-  redis, USERS, AUTH, logKey, friendsKey, inKey, outKey, notifKey, seenKey,
+  redis, USERS, JOINED, AUTH, logKey, friendsKey, inKey, outKey, notifKey, seenKey,
   cleanName, idOf, getLog, namesOf, notify, NOTIF_LIMIT, fail,
 };

@@ -31,6 +31,7 @@ vercel dev
 - **layout**: on wide screens (1100px+) it's report + rankings · diary · ploogers side by side; narrower screens get a bottom tab bar (diary / report / rankings / ploogers) that remembers your last tab, with a red dot for pending plooger requests.
 - **🔔 notifications**: friend requests (accept inline), accepted requests, "@x just dropped one". "clear all" empties the list.
 - **⚙️ settings**: change your username, or delete your account (retype your username to confirm).
+- **🛠️ admin** (admins only): an "admin" card in settings opens a page listing every user, with search and a delete button (retype the username to confirm). Admins are set by the `PLOOG_ADMINS` env var (comma-separated usernames), defaulting to `henpoop`.
 
 ## database
 Upstash Redis via the Vercel Marketplace (Storage → Upstash → Redis, free tier), connected to this project.
@@ -40,6 +41,7 @@ Vercel injects `KV_REST_API_URL` and `KV_REST_API_TOKEN`; the API also accepts `
 | --- | --- | --- |
 | `ploog:users` | hash | username (lowercase) → display name |
 | `ploog:auth` | hash | username → `s1$<salt>$<scrypt hash>` |
+| `ploog:joined` | hash | username → sign-up time (ms). Accounts made before this was added have none. |
 | `ploog:session:<sha256(token)>` | string | username, expires after 60 days |
 | `ploog:sessions:<user>` | set | that user's session hashes (to log out everywhere) |
 | `ploog:log:<user>` | hash | `YYYY-MM-DD` → `{"p":1,"d":[3,0,5]}` (one vibe 1–5 per drop, 0 = none) or `{"p":0}`. Older `{"p":1,"v":3}` entries mean one drop. |
@@ -58,6 +60,7 @@ Vercel serverless functions in `/api`. Auth is an HttpOnly, SameSite=Lax session
 - `POST /api/friends`: `{action: "request" | "accept" | "decline" | "cancel" | "remove" | "fart", name}`
 - `GET /api/notifications` / `POST /api/notifications {action: "read" | "clear"}`
 - `POST /api/account`: `{action: "rename", name}` or `{action: "delete", confirm}`
+- `GET /api/admin` / `POST /api/admin {action: "delete", name, confirm}`: admins only
 
 ## security notes
 - Passwords: scrypt with a random 16-byte salt per user (Node built-in `crypto`). Plaintext is never stored.
@@ -72,5 +75,6 @@ Vercel serverless functions in `/api`. Auth is an HttpOnly, SameSite=Lax session
 - `style.css`: the vibes
 - `app.js`: logic, sync, calendar, friends, notifications, tabs, confetti
 - `stats.js`: the poop report and the rankings
-- `api/`: serverless routes (`_redis.js` and `_auth.js` are shared helpers, not routes)
+- `api/`: serverless routes (`_redis.js`, `_auth.js` and `_accounts.js` are shared helpers, not routes)
 - `dev/server.js`: local server with a fake Redis (not deployed)
+- `dev/delete-users.js`: delete accounts from the command line (`node dev/delete-users.js name1 name2 [--confirm]`; dry run without `--confirm`). Reads the database keys from `.env.local` (`vercel env pull .env.local`).
