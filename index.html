@@ -216,6 +216,11 @@
         <h2>admin 🛠️</h2>
         <p class="hint" id="admin-count"></p>
         <input id="admin-search" class="admin-search" placeholder="search users" autocomplete="off" />
+        <div class="seg" id="admin-sort" role="group" aria-label="sort users by">
+          <button type="button" data-sort="newest" aria-pressed="true">🆕 newest</button>
+          <button type="button" data-sort="oldest" aria-pressed="false">👴 oldest</button>
+          <button type="button" data-sort="name" aria-pressed="false">🔤 a–z</button>
+        </div>
         <ul class="admin-list" id="admin-list"></ul>
       </div>
     </section>

@@ -262,6 +262,17 @@ $("#settings-btn").addEventListener("click", showSettings);
 
 let adminUsers = [];
 let confirmingDelete = null; // username whose row is asking "type it to confirm"
+let adminSort = "newest";
+
+// best guess at when an account was made: the recorded sign-up, else their first logged day,
+// else 0 ("before tracking", so they count as the oldest)
+const joinedAt = (u) => u.joined || (u.firstLog ? parseKey(u.firstLog).getTime() : 0);
+
+const ADMIN_SORTS = {
+  newest: (a, b) => joinedAt(b) - joinedAt(a) || a.id.localeCompare(b.id),
+  oldest: (a, b) => joinedAt(a) - joinedAt(b) || a.id.localeCompare(b.id),
+  name: (a, b) => a.id.localeCompare(b.id),
+};
 
 async function showAdmin() {
   show("admin");
@@ -279,7 +290,9 @@ async function showAdmin() {
 
 function renderAdmin() {
   const q = $("#admin-search").value.trim().toLowerCase();
-  const shown = adminUsers.filter((u) => u.id.includes(q));
+  const shown = adminUsers.filter((u) => u.id.includes(q)).sort(ADMIN_SORTS[adminSort]);
+  document.querySelectorAll("#admin-sort [data-sort]").forEach((b) =>
+    b.setAttribute("aria-pressed", String(b.dataset.sort === adminSort)));
   $("#admin-count").textContent =
     `${adminUsers.length} users${q ? ` · ${shown.length} matching` : ""}`;
 
@@ -324,6 +337,13 @@ function joinedText(u) {
 $("#admin-open").addEventListener("click", showAdmin);
 $("#admin-back").addEventListener("click", showSettings);
 $("#admin-search").addEventListener("input", renderAdmin);
+
+$("#admin-sort").addEventListener("click", (e) => {
+  const btn = e.target.closest("[data-sort]");
+  if (!btn) return;
+  adminSort = btn.dataset.sort;
+  renderAdmin();
+});
 
 $("#admin-list").addEventListener("click", async (e) => {
   const ask = e.target.closest("[data-admin-ask]");

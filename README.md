@@ -31,7 +31,7 @@ vercel dev
 - **layout**: on wide screens (1100px+) it's report + rankings · diary · ploogers side by side; narrower screens get a bottom tab bar (diary / report / rankings / ploogers) that remembers your last tab, with a red dot for pending plooger requests.
 - **🔔 notifications**: friend requests (accept inline), accepted requests, "@x just dropped one". "clear all" empties the list.
 - **⚙️ settings**: change your username, or delete your account (retype your username to confirm).
-- **🛠️ admin** (admins only): an "admin" card in settings opens a page listing every user, with search and a delete button (retype the username to confirm). Admins are set by the `PLOOG_ADMINS` env var (comma-separated usernames), defaulting to `henpoop`.
+- **🛠️ admin** (admins only): an "admin" card in settings opens a page listing every user with their join date, search, sorting (newest / oldest / a–z) and a delete button (retype the username to confirm). Admins are set by the `PLOOG_ADMINS` env var (comma-separated usernames), defaulting to `henpoop`.
 
 ## database
 Upstash Redis via the Vercel Marketplace (Storage → Upstash → Redis, free tier), connected to this project.
