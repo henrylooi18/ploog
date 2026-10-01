@@ -550,6 +550,7 @@ function showCalendar(tab = currentTab) {
   show("cal");
   setTab(tab);
   loadFriends();
+  playFartAttack(); // a fart that arrived while you were elsewhere
 }
 
 function streak(log) {
@@ -798,10 +799,53 @@ document.addEventListener("click", (e) => {
   renderSuggestion();
 });
 
+/* ---------- fart attack 💨 ---------- */
+
+let pendingFart = null; // waiting to play until you're on the diary screen
+
+function playFartAttack() {
+  const dialog = $("#fart-modal");
+  // only on the diary screen, and never on top of another popup
+  if (!pendingFart || !$("#cal").classList.contains("active") || dialog.open || $("#day-modal").open) return;
+  const f = pendingFart;
+  pendingFart = null;
+
+  $("#fart-who").textContent = `@${f.fromName}`;
+  $("#fart-times").textContent = f.count > 1 ? ` x${f.count}` : "";
+  $("#fart-more").textContent = f.others ? `+${f.others} more fart${f.others === 1 ? "" : "s"} from others 😷` : "";
+  $("#fart-back").dataset.name = f.from;
+  $("#fart-back").dataset.notif = f.id;
+  $("#fart-back").disabled = firedBack.has(f.id);
+  dialog.showModal();
+
+  // one wave per fart from that person (max 3), each with a screen shake
+  for (let i = 0; i < Math.min(f.count, 3); i++) {
+    setTimeout(() => {
+      rain(["💨", "💨", "💨", "🤢", "🫢"], 50, false, $("#fart-fx"));
+      burst(["💨", "💨", "🤢"], 20, $("#fart-fx"));
+      $("#dash").classList.remove("shake");
+      void $("#dash").offsetWidth; // restart the animation
+      $("#dash").classList.add("shake");
+    }, i * 1100);
+  }
+}
+
+// both buttons close it; "fart back" is then handled by the shared [data-act] click handler
+$("#fart-modal").addEventListener("click", (e) => {
+  if (e.target.closest("button") || e.target === $("#fart-modal")) $("#fart-modal").close();
+});
+
 /* ---------- particle effects ---------- */
 
-function rain(emojis, count, slow = false) {
-  const fx = $("#fx");
+// effects can overlap (celebration + fart attack); past this many live emojis, skip the extras
+// so cheap phones don't stutter
+const MAX_PARTICLES = 160;
+const room = (layer, wanted) => Math.max(0, Math.min(wanted, MAX_PARTICLES - layer.childElementCount));
+
+// layer: where the particles go (#fx normally; a popup passes its own so they show above it)
+function rain(emojis, count, slow = false, layer = $("#fx")) {
+  const fx = layer;
+  count = room(fx, count);
   for (let i = 0; i < count; i++) {
     const s = document.createElement("span");
     s.className = "fall";
@@ -817,8 +861,9 @@ function rain(emojis, count, slow = false) {
   }
 }
 
-function burst(emojis, count) {
-  const fx = $("#fx");
+function burst(emojis, count, layer = $("#fx")) {
+  const fx = layer;
+  count = room(fx, count);
   for (let i = 0; i < count; i++) {
     const s = document.createElement("span");
     s.className = "burst";
@@ -987,12 +1032,14 @@ async function loadNotifs() {
       void $("#bell").offsetWidth; // restart the animation
       $("#bell").classList.add("ring");
     }
-    // you've been farted at: make it smell (once per fart, only for ones you haven't seen)
+    // you've been farted at (only farts you haven't reacted to yet). if several arrived,
+    // the most recent farter gets the full attack and everyone else is a "+N more" line
     const farts = notifs.items.filter((n) => n.type === "fart" && n.ts > (newestNotif ?? notifs.seen));
     if (farts.length) {
-      const others = farts.length > 1 ? ` (+${farts.length - 1} more)` : "";
-      toast(`@${farts[0].fromName} farted at you 💨${others}`);
-      rain(["💨", "💨", "🤢", "💨"], 40);
+      const latest = farts[0];
+      const fromThem = farts.filter((n) => n.from === latest.from).length;
+      pendingFart = { ...latest, count: fromThem, others: farts.length - fromThem };
+      playFartAttack();
     }
     newestNotif = Math.max(newestNotif ?? 0, ...notifs.items.map((n) => n.ts));
   } catch (err) {
@@ -1075,22 +1122,25 @@ document.addEventListener("keydown", (e) => {
   if (e.key === "Escape") closeNotifs();
 });
 
+// every check costs database calls (and the free tier has a monthly cap), so: only while the
+// tab is visible, and ploogers' data only when a panel that shows it is on screen
 function poll() {
   if (!me || document.hidden) return;
   loadNotifs();
-  if ($("#cal").classList.contains("active")) loadFriends();
+  if ($(".panel-ploogers").offsetParent || $(".panel-board").offsetParent) loadFriends();
 }
 
 function startPolling() {
   stopPolling();
   loadNotifs();
-  pollTimer = setInterval(poll, 30000);
+  pollTimer = setInterval(poll, 60000);
 }
 
 function stopPolling() {
   clearInterval(pollTimer);
   notifs = { items: [], unread: 0, seen: 0 };
   newestNotif = null;
+  pendingFart = null;
   firedBack.clear();
   $("#badge").hidden = true;
   // don't leak the previous user's friends to the next login

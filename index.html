@@ -243,6 +243,21 @@
     </form>
   </dialog>
 
+  <!-- FART ATTACK: someone farted at you -->
+  <dialog id="fart-modal" aria-labelledby="fart-title">
+    <div class="fx" id="fart-fx" aria-hidden="true"></div>
+    <div class="modal fart-card">
+      <div class="fart-big" aria-hidden="true">💨</div>
+      <h3 id="fart-title"><span id="fart-who"></span> farted at you<span id="fart-times"></span></h3>
+      <p class="sub">it's giving… biohazard 🤢</p>
+      <p class="fart-more" id="fart-more"></p>
+      <div class="choices">
+        <button class="btn btn-mint" type="button" id="fart-back" data-act="fart">fart back 💨</button>
+        <button class="btn btn-ghost" type="button">ew ok 🤢</button>
+      </div>
+    </div>
+  </dialog>
+
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
   <div class="fx" id="fx" aria-hidden="true"></div>
 

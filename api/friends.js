@@ -36,8 +36,13 @@ module.exports = async (req, res) => {
       const [friends, incoming, outgoing] = await Promise.all([
         namesOf(friendIds || []), namesOf(inIds || []), namesOf(outIds || []),
       ]);
+      // only the last year of each plooger's log: plenty for today / streaks / this month,
+      // and it keeps this response (fetched on every refresh) from growing forever
+      const since = new Date(Date.now() - 366 * 86400000).toISOString().slice(0, 10);
       const logs = await Promise.all(friends.map((f) => getLog(f.id)));
-      friends.forEach((f, i) => (f.log = logs[i]));
+      friends.forEach((f, i) => {
+        f.log = Object.fromEntries(Object.entries(logs[i]).filter(([day]) => day >= since));
+      });
       return res.status(200).json({ friends, incoming, outgoing });
     }
 

@@ -362,6 +362,27 @@ dialog::backdrop { background: rgba(46, 26, 15, .45); backdrop-filter: blur(3px)
 #m-no.on { background: var(--lilac); }
 .modal-foot { display: flex; justify-content: space-between; align-items: center; }
 
+/* fart attack */
+#fart-modal::backdrop { background: rgba(122, 160, 40, .35); backdrop-filter: blur(2px) hue-rotate(40deg); }
+/* no transform on the dialog itself, so its particle layer stays fixed to the screen;
+   the card pops in instead, and the particles fly over the card */
+#fart-modal[open] { animation: none; overflow: visible; }
+#fart-modal .fx { z-index: 2; }
+.fart-card { position: relative; background: #f3fbe4; border-radius: var(--radius); animation: pop-in .3s cubic-bezier(.2, 1.4, .4, 1); }
+.fart-card .btn { white-space: nowrap; padding-left: 10px; padding-right: 10px; }
+.fart-big { font-size: 72px; line-height: 1; animation: party .7s ease-in-out infinite; }
+.fart-card h3 { margin: 6px 0 2px; font-size: 22px; }
+.fart-more { margin: -8px 0 16px; font-size: 13px; font-weight: 600; color: var(--muted); }
+.fart-more:empty { display: none; }
+.dash.shake { animation: shake .5s ease-in-out; }
+@keyframes shake {
+  0%, 100% { transform: translate(0, 0); }
+  20% { transform: translate(-8px, 3px) rotate(-1deg); }
+  40% { transform: translate(7px, -4px) rotate(1deg); }
+  60% { transform: translate(-6px, 2px); }
+  80% { transform: translate(5px, -2px); }
+}
+
 /* suggested plooger */
 .suggest-label { margin: 14px 0 6px; font-size: 13px; font-weight: 600; color: var(--muted); }
 .friend.suggest { background: #fff3b8; border: 2.5px dashed var(--ink); }
