@@ -310,9 +310,11 @@ function showAsk() {
 }
 
 $("#btn-yes").addEventListener("click", () => {
+  const first = !hasDropped();
   const today = drops(me.log[todayKey()]);
   setEntry(todayKey(), dropsEntry(today.length ? today : [0]), { notify: true });
   showYay();
+  if (first) setTimeout(maybeAskCreator, 1600); // let the confetti land first
 });
 
 // log one more drop today (from the "+1" button once you've already dropped)
@@ -603,9 +605,11 @@ $("#m-drops").addEventListener("click", (e) => {
 });
 
 $("#m-yes").addEventListener("click", () => {
+  const first = !hasDropped();
   const d = drops(me.log[editingKey]);
   updateDrops(d.length ? d : [0]);
   burst(["💩", "✨"], 12);
+  if (first) setTimeout(maybeAskCreator, 600); // opens on top of the day editor
 });
 
 $("#m-no").addEventListener("click", () => {
@@ -624,6 +628,49 @@ $("#m-clear").addEventListener("click", () => {
 // click outside the modal to close
 modal.addEventListener("click", (e) => {
   if (e.target === modal) modal.close();
+});
+
+/* ---------- "add the creator?" after your first ever drop ---------- */
+
+const CREATOR = "henpoop";
+const askedKey = () => `ploog:creator-asked:${me.id}`;
+
+const hasDropped = () => Object.values(me.log).some((e) => drops(e).length);
+
+async function maybeAskCreator() {
+  if (!me || me.id === CREATOR) return;
+  try {
+    if (localStorage.getItem(askedKey())) return;
+  } catch {}
+
+  try {
+    // only ask if the creator's account exists and you're not already linked up
+    const [{ status }, f] = await Promise.all([
+      api("/api/auth", { method: "POST", body: { action: "lookup", name: CREATOR } }),
+      api("/api/friends"),
+    ]);
+    const linked = [...f.friends, ...f.incoming, ...f.outgoing].some((p) => p.id === CREATOR);
+    if (status === "new" || linked) return;
+  } catch {
+    return; // offline: don't nag
+  }
+
+  try { localStorage.setItem(askedKey(), "1"); } catch {}
+  $("#creator-modal").showModal();
+}
+
+$("#creator-add").addEventListener("click", async () => {
+  $("#creator-modal").close();
+  if (await friendAction("request", CREATOR)) burst(["👑", "💩", "✨"], 18);
+});
+
+$("#creator-nah").addEventListener("click", () => {
+  $("#creator-modal").close();
+  toast("no worries. you can add @henpoop anytime 👀");
+});
+
+$("#creator-modal").addEventListener("click", (e) => {
+  if (e.target === $("#creator-modal")) $("#creator-modal").close();
 });
 
 /* ---------- particle effects ---------- */

@@ -220,6 +220,26 @@
     </form>
   </dialog>
 
+  <!-- "ADD THE CREATOR?" (once, after a user's first ever drop) -->
+  <dialog id="creator-modal" aria-labelledby="creator-title">
+    <div class="modal creator">
+      <div class="mascot bounce">👑</div>
+      <h3 id="creator-title">first drop unlocked 🎉</h3>
+      <p class="sub">wanna add the creator of ploog as a plooger?</p>
+      <div class="creator-card">
+        <span class="f-status yes">💩</span>
+        <div class="f-info">
+          <b>@henpoop</b>
+          <span>made this app. poops daily (allegedly)</span>
+        </div>
+      </div>
+      <div class="choices">
+        <button class="btn btn-yellow" type="button" id="creator-add">add ➕</button>
+        <button class="btn btn-ghost" type="button" id="creator-nah">nah</button>
+      </div>
+    </div>
+  </dialog>
+
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
   <div class="fx" id="fx" aria-hidden="true"></div>
 
